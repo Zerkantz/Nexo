@@ -55,6 +55,9 @@ export interface GameEntity {
   open?: boolean; // puertas
   minigame?: MinigameType; // puertas y terminales
   terminals?: Point[]; // dual_door
+  path?: Point[]; // ruta de patrulla de guardias y drones
+  pathIndex?: number;
+  rotating?: boolean; // cámaras rotativas
 }
 
 export interface SessionPlayer {
