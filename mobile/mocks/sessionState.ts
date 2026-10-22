@@ -1,128 +1,206 @@
-// AVISO: SOLO PARA PRUEBAS. Estado falso de `session:state` (10x10) para el modo demo.
-// Nivel 1: Bóveda Central (Laberíntico, alta dificultad con guardias patrullando activamente cada turno).
+// AVISO: SOLO PARA PRUEBAS. Estado de `session:state` (12x12 con cuartos conectados).
+// Nivel 1: Bóveda Central (Sector 1: Perímetro Exterior // Sector 2: Cámara Acorazada).
 import type { SessionState } from '../lib/types';
 
-export const mockLevel1State: SessionState = {
+export const mockSector1State: SessionState = {
   sessionId: 'demo',
   type: 'SOLO',
   turn: 0,
   alert: 0,
   status: 'PLAYING',
   theme: 'BANK',
-  width: 10,
-  height: 10,
+  roomName: 'SECTOR 1: ACCESO PERIMETRAL',
+  roomId: 'sector_1',
+  width: 12,
+  height: 12,
   tiles: [
-    // y=0: Muro exterior norte
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    // y=1: Inicio en (1,1); pasillo hacia la derecha; nodo de energía en (8,1)
-    [1, 6, 0, 0, 1, 0, 0, 0, 4, 1],
-    // y=2: Bifurcaciones de pasillos
-    [1, 0, 1, 0, 1, 0, 1, 1, 0, 1],
-    // y=3: Puerta 1 en (4,3) conectando sector oeste con este
-    [1, 0, 1, 0, 2, 0, 0, 1, 0, 1],
-    // y=4: Pasillos con recovecos y cruces tácticos
-    [1, 0, 0, 0, 1, 1, 0, 1, 0, 1],
-    // y=5: Cruce transversal este-oeste
-    [1, 1, 1, 0, 1, 0, 0, 0, 0, 1],
-    // y=6: Nodo de energía oculto en recámara de mantenimiento (1,6)
-    [1, 4, 1, 0, 1, 0, 1, 1, 0, 1],
-    // y=7: Pasillo sur de circunvalación; terminal de datos en (7,7)
-    [1, 0, 0, 0, 0, 0, 0, 7, 1, 1],
-    // y=8: Acceso a la bóveda: Puerta 2 en (6,8); Extracción en (8,8)
-    [1, 1, 1, 1, 1, 0, 2, 0, 5, 1],
-    // y=9: Muro exterior sur
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    // 0  1  2  3  4  5  6  7  8  9 10 11
+    [6, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0], // y=0: (0,0) Inicio en esquina noroeste
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0], // y=1
+    [0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0], // y=2: (10,2) Nodo de energía
+    [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0], // y=3
+    [0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1], // y=4: Cruces y escondites tácticos
+    [1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 2, 2], // y=5: (10,5) Puerta 1; (11,5) Compuerta de enlace a Sector 2!
+    [4, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0], // y=6: (0,6) Nodo de energía en esquina oeste
+    [1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 0], // y=7
+    [0, 0, 0, 1, 0, 0, 0, 1, 7, 0, 0, 0], // y=8: (8,8) Terminal de datos
+    [0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0], // y=9
+    [0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0], // y=10
+    [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0], // y=11: Conexión sur aprovechando esquina (11,11)
   ],
   players: [
-    { playerId: 7, slot: 1, x: 1, y: 1, battery: 80, maxBattery: 100, camouflageTurns: 0 },
+    { playerId: 7, slot: 1, x: 0, y: 0, battery: 100, maxBattery: 100, camouflageTurns: 0 },
   ],
   entities: [
-    // Cámara de seguridad 1: rotativa en sector superior
+    // Cámara de seguridad norte
     {
       id: 'CAM_1',
       type: 'camera',
-      x: 5,
-      y: 1,
+      x: 6,
+      y: 0,
       dir: 'down',
       range: 2,
       rotating: true,
       disabledTurns: 0,
-      visionTiles: [[5, 2], [5, 3]],
+      visionTiles: [[6, 1], [6, 2]],
     },
-    // Cámara de seguridad 2: vigilancia fija del corredor este
-    {
-      id: 'CAM_2',
-      type: 'camera',
-      x: 8,
-      y: 6,
-      dir: 'up',
-      range: 2,
-      disabledTurns: 0,
-      visionTiles: [[8, 5], [8, 4]],
-    },
-    // Guardia 1: patrulla activa del corredor central (columna 3)
+    // Guardia 1: patrulla vertical por el pasillo central (columna 4)
     {
       id: 'GRD_1',
       type: 'guard',
-      x: 3,
+      x: 4,
       y: 2,
       dir: 'down',
       range: 2,
       disabledTurns: 0,
       pathIndex: 0,
       path: [
-        [3, 2], [3, 3], [3, 4], [3, 5], [3, 4], [3, 3],
+        [4, 2], [4, 3], [4, 4], [4, 3],
       ],
-      visionTiles: [[3, 3], [3, 4]],
+      visionTiles: [[4, 3], [4, 4]],
     },
-    // Guardia 2: patrulla perimetral del sector este de bóvedas
+    // Guardia 2: patrulla del pasillo este (columna 8)
     {
       id: 'GRD_2',
       type: 'guard',
-      x: 6,
+      x: 8,
       y: 1,
-      dir: 'right',
+      dir: 'down',
       range: 2,
       disabledTurns: 0,
-      pathIndex: 1,
+      pathIndex: 0,
       path: [
-        [5, 1], [6, 1], [7, 1], [8, 1],
-        [8, 2], [8, 3], [8, 4], [8, 5],
-        [7, 5], [6, 5], [6, 4], [6, 3],
-        [5, 3], [5, 2],
+        [8, 1], [8, 2], [8, 3], [8, 4], [8, 3], [8, 2],
       ],
-      visionTiles: [[7, 1], [8, 1]],
+      visionTiles: [[8, 2], [8, 3]],
     },
-    // Guardia 3: patrulla del pasillo sur (circunvalación hacia terminal y bóveda)
+    // Puerta de seguridad interior
+    { id: 'DOOR_1', type: 'door', x: 10, y: 5, open: false, minigame: 'SEQUENCE' },
+    // Compuerta de enlace al Sector 2 (en el borde este)
+    {
+      id: 'DOOR_AIRLOCK_S1',
+      type: 'door',
+      x: 11,
+      y: 5,
+      open: false,
+      minigame: 'SEQUENCE',
+      targetRoom: 'sector_2',
+      targetX: 0,
+      targetY: 5,
+    },
+    // Terminal de datos
+    { id: 'TERM_1', type: 'terminal', x: 8, y: 8, minigame: 'SEQUENCE' },
+    // Nodos de energía
+    { id: 'EN_1', type: 'energy', x: 0, y: 6 },
+    { id: 'EN_2', type: 'energy', x: 10, y: 2 },
+    // Trampas de seguridad
+    { id: 'TRP_1', type: 'trap', x: 2, y: 4 },
+    { id: 'TRP_2', type: 'trap', x: 6, y: 6 },
+  ],
+  revealedTraps: [],
+  fog: null,
+};
+
+export const mockSector2State: SessionState = {
+  sessionId: 'demo',
+  type: 'SOLO',
+  turn: 0,
+  alert: 0,
+  status: 'PLAYING',
+  theme: 'BANK',
+  roomName: 'SECTOR 2: CÁMARA ACORAZADA',
+  roomId: 'sector_2',
+  width: 12,
+  height: 12,
+  tiles: [
+    // 0  1  2  3  4  5  6  7  8  9 10 11
+    [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 4], // y=0: (11,0) Nodo de energía en esquina noreste
+    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0], // y=1
+    [0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0], // y=2
+    [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0], // y=3
+    [0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1], // y=4
+    [2, 0, 0, 0, 1, 1, 7, 1, 0, 0, 0, 0], // y=5: (0,5) Compuerta a Sector 1; (6,5) Bóveda Principal
+    [0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0], // y=6
+    [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0], // y=7
+    [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0], // y=8
+    [0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0], // y=9
+    [1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0], // y=10
+    [0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 2, 5], // y=11: (10,11) Puerta Bóveda; (11,11) EXTRACCIÓN!
+  ],
+  players: [
+    { playerId: 7, slot: 1, x: 0, y: 5, battery: 80, maxBattery: 100, camouflageTurns: 0 },
+  ],
+  entities: [
+    // Cámara de vigilancia de bóveda
+    {
+      id: 'CAM_2',
+      type: 'camera',
+      x: 8,
+      y: 4,
+      dir: 'down',
+      range: 2,
+      rotating: true,
+      disabledTurns: 0,
+      visionTiles: [[8, 5], [8, 6]],
+    },
+    // Guardia 3: patrulla interior del complejo acorazado
     {
       id: 'GRD_3',
       type: 'guard',
-      x: 2,
+      x: 4,
       y: 7,
       dir: 'right',
       range: 2,
       disabledTurns: 0,
       pathIndex: 0,
       path: [
-        [2, 7], [3, 7], [4, 7], [5, 7], [6, 7], [5, 7], [4, 7], [3, 7],
+        [4, 7], [5, 7], [6, 7], [7, 7], [6, 7], [5, 7],
       ],
-      visionTiles: [[3, 7], [4, 7]],
+      visionTiles: [[5, 7], [6, 7]],
     },
-    // Puerta 1: acceso directo al sector este
-    { id: 'DOOR_1', type: 'door', x: 4, y: 3, open: false, minigame: 'SEQUENCE' },
-    // Puerta 2: puerta acorazada de la bóveda de extracción
-    { id: 'DOOR_2', type: 'door', x: 6, y: 8, open: false, minigame: 'SEQUENCE' },
-    // Terminal de datos secundaria
-    { id: 'TERM_1', type: 'terminal', x: 7, y: 7, minigame: 'SEQUENCE' },
-    // Nodos de energía
-    { id: 'EN_1', type: 'energy', x: 1, y: 6 },
-    { id: 'EN_2', type: 'energy', x: 8, y: 1 },
-    // Trampas de seguridad (invisibles al inicio)
-    { id: 'TRP_1', type: 'trap', x: 2, y: 7 },
-    { id: 'TRP_2', type: 'trap', x: 6, y: 3 },
-    { id: 'TRP_3', type: 'trap', x: 5, y: 6 },
+    // Guardia 4: patrulla perimetral de acceso sur
+    {
+      id: 'GRD_4',
+      type: 'guard',
+      x: 8,
+      y: 9,
+      dir: 'down',
+      range: 2,
+      disabledTurns: 0,
+      pathIndex: 0,
+      path: [
+        [8, 9], [8, 10], [7, 10], [6, 10], [7, 10], [8, 10],
+      ],
+      visionTiles: [[8, 10]],
+    },
+    // Compuerta de regreso a Sector 1
+    {
+      id: 'DOOR_AIRLOCK_S2',
+      type: 'door',
+      x: 0,
+      y: 5,
+      open: true,
+      targetRoom: 'sector_1',
+      targetX: 11,
+      targetY: 5,
+    },
+    // Terminal de datos de la bóveda maestra
+    { id: 'TERM_VAULT', type: 'terminal', x: 6, y: 5, minigame: 'SEQUENCE' },
+    // Puerta de la esclusa final de extracción
+    { id: 'DOOR_EXTRACTION', type: 'door', x: 10, y: 11, open: false, minigame: 'SEQUENCE' },
+    // Nodo de energía
+    { id: 'EN_3', type: 'energy', x: 11, y: 0 },
+    // Trampas de la bóveda
+    { id: 'TRP_3', type: 'trap', x: 6, y: 6 },
+    { id: 'TRP_4', type: 'trap', x: 9, y: 11 },
   ],
-  // Trampa ya revelada en demostración inicial
-  revealedTraps: [[2, 7]],
+  revealedTraps: [],
   fog: null,
 };
+
+export const SECTOR_ROOMS: Record<string, SessionState> = {
+  sector_1: mockSector1State,
+  sector_2: mockSector2State,
+};
+
+export const mockLevel1State = mockSector1State;

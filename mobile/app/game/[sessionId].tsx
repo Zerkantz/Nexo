@@ -1,6 +1,5 @@
 // Pantalla de juego: HUD + tablero + cruceta. Todo se dibuja desde `session:state`.
-// Encima van las cartas del tutorial, que explican cada mecánica la primera vez que aparece.
-// Usa /game/demo para probar con datos falsos.
+// Encima van las cartas del tutorial y la animación de transición de cuartos.
 import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
@@ -18,19 +17,30 @@ import { Board } from '../../components/game/Board';
 import { DPad } from '../../components/game/DPad';
 import { Hud } from '../../components/game/Hud';
 import { ResultModal } from '../../components/game/ResultModal';
+import { RoomTransitionOverlay } from '../../components/game/RoomTransitionOverlay';
 import { HowToPlayGuide } from '../../components/tutorial/HowToPlayGuide';
 import { TipCard } from '../../components/tutorial/TipCard';
 import { useGameSession } from '../../hooks/useGameSession';
 import { useTutorial } from '../../hooks/useTutorial';
-import { colors, getLevelAccent, levelName } from '../../theme/colors';
+import { colors, getLevelAccent } from '../../theme/colors';
 
 export default function GameScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
-  const { state, ended, error, isDemo, move, wait, leave, resetDemo } = useGameSession(sessionId ?? '');
+  const {
+    state,
+    ended,
+    error,
+    isDemo,
+    transitioningRoom,
+    clearTransition,
+    move,
+    wait,
+    leave,
+    resetDemo,
+  } = useGameSession(sessionId ?? '');
   const { width, height } = useWindowDimensions();
   const [guideOpen, setGuideOpen] = useState(false);
 
-  // TODO (Día 2): usar el playerId del jugador logueado (de /me) en vez del primero.
   const me = state?.players[0];
   const tutorial = useTutorial(state, me);
 
@@ -57,13 +67,12 @@ export default function GameScreen() {
 
   const accent = getLevelAccent(state.theme);
 
-  // Tamaño de casilla: que el tablero quepa en el ancho y en ~50 % del alto
-  const maxBoard = Math.min(width - 24, height * 0.5);
+  // Tamaño de casilla para 12x12
+  const maxBoard = Math.min(width - 16, height * 0.52);
   const tileSize = Math.floor(maxBoard / Math.max(state.width, state.height));
 
-  // Mientras hay una carta del tutorial abierta, el juego queda en pausa
   const showingTip = !!tutorial.current;
-  const canPlay = state.status === 'PLAYING' && !showingTip;
+  const canPlay = state.status === 'PLAYING' && !showingTip && !transitioningRoom;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -72,8 +81,8 @@ export default function GameScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <View style={styles.titleBox}>
-          <Text style={[styles.title, { color: accent }]}>{levelName(state.theme)}</Text>
-          {isDemo && <Text style={styles.demoTag}>DEMO</Text>}
+          <Text style={[styles.title, { color: accent }]}>{state.roomName ?? 'BÓVEDA CENTRAL'}</Text>
+          {isDemo && <Text style={styles.demoTag}>DEMO · SECTOR</Text>}
         </View>
         <Pressable onPress={() => setGuideOpen(true)} hitSlop={12}>
           <CircleHelp size={24} color={colors.text} />
@@ -96,7 +105,7 @@ export default function GameScreen() {
       <View style={styles.controls}>
         <DPad accent={accent} disabled={!canPlay} onMove={move} onWait={wait} />
 
-        {/* Carta del tutorial: flota sobre la cruceta y deja ver el tablero */}
+        {/* Carta del tutorial */}
         {tutorial.current && (
           <View style={styles.tipLayer}>
             <TipCard
@@ -109,9 +118,17 @@ export default function GameScreen() {
         )}
       </View>
 
+      {/* Modal de fin de partida */}
       <ResultModal result={ended} onBack={goBack} onRetry={isDemo ? resetDemo : undefined} />
 
-      {/* Guía completa (botón de ayuda) */}
+      {/* Animación de cambio de cuarto / sector */}
+      <RoomTransitionOverlay
+        visible={!!transitioningRoom}
+        roomName={transitioningRoom ?? ''}
+        onAnimationComplete={clearTransition}
+      />
+
+      {/* Guía completa */}
       <Modal visible={guideOpen} animationType="slide" onRequestClose={() => setGuideOpen(false)}>
         <SafeAreaView style={styles.guide}>
           <View style={styles.topBar}>
@@ -137,9 +154,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    gap: 12,
+    paddingHorizontal: 8,
+    paddingBottom: 10,
+    gap: 8,
   },
   centered: {
     alignItems: 'center',
@@ -157,19 +174,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 4,
+    paddingTop: 2,
+    paddingHorizontal: 4,
   },
   titleBox: {
     alignItems: 'center',
   },
   title: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     letterSpacing: 2,
   },
   demoTag: {
     color: colors.suspicion,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
     letterSpacing: 2,
   },

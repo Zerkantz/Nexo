@@ -16,6 +16,7 @@ export function useGameSession(sessionId: string) {
   const [lastEvent, setLastEvent] = useState<GameEvent | null>(null);
   const [ended, setEnded] = useState<GameEnded | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [transitioningRoom, setTransitioningRoom] = useState<string | null>(null);
 
   // ----- Modo real: Socket.io -----
   useEffect(() => {
@@ -60,7 +61,7 @@ export function useGameSession(sessionId: string) {
   useEffect(() => {
     if (!isDemo || !state || ended) return;
     if (state.status === 'WON') {
-      setEnded({ result: 'WON', rewards: { credits: 150, energy: 40, intel: 15 }, unlockedSkill: 'OVERLOAD' });
+      setEnded({ result: 'WON', rewards: { credits: 250, energy: 60, intel: 30 }, unlockedSkill: 'OVERLOAD' });
     } else if (state.status === 'LOST') {
       setEnded({ result: 'LOST', rewards: { credits: 0, energy: 0, intel: 0 } });
     }
@@ -69,8 +70,16 @@ export function useGameSession(sessionId: string) {
   // ----- Intenciones del jugador -----
   const move = useCallback(
     (dir: Direction) => {
-      if (isDemo) setState((s) => (s ? mockMove(s, dir) : s));
-      else getSocket()?.emit('game:move', { dir });
+      if (isDemo) {
+        setState((s) => {
+          if (!s) return s;
+          return mockMove(s, dir, (nextRoom) => {
+            setTransitioningRoom(nextRoom.roomName ?? 'NUEVO SECTOR');
+          });
+        });
+      } else {
+        getSocket()?.emit('game:move', { dir });
+      }
     },
     [isDemo],
   );
@@ -84,12 +93,17 @@ export function useGameSession(sessionId: string) {
     if (!isDemo) getSocket()?.emit('session:leave', {});
   }, [isDemo]);
 
+  const clearTransition = useCallback(() => {
+    setTransitioningRoom(null);
+  }, []);
+
   /** Solo demo: reinicia la partida falsa. */
   const resetDemo = useCallback(() => {
     if (!isDemo) return;
     setState(mockLevel1State);
     setEnded(null);
+    setTransitioningRoom(null);
   }, [isDemo]);
 
-  return { state, lastEvent, ended, error, isDemo, move, wait, leave, resetDemo };
+  return { state, lastEvent, ended, error, isDemo, transitioningRoom, clearTransition, move, wait, leave, resetDemo };
 }

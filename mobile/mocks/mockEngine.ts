@@ -1,6 +1,8 @@
-// AVISO: SOLO PARA PRUEBAS. Simula de forma simplificada el motor del servidor (sección 4)
-// para probar los turnos, patrullas dinámicas de guardias, cámaras y conos de visión sin backend.
+// AVISO: SOLO PARA PRUEBAS. Simula el motor del juego en el cliente (modo demo)
+// con soporte para cuartos múltiples (12x12), patrullas dinámicas de guardias,
+// balance justo de dificultad y transiciones de pantalla entre sectores.
 import { Tile, type Direction, type GameEntity, type Point, type SessionState } from '../lib/types';
+import { SECTOR_ROOMS } from './sessionState';
 
 export const DIR_DELTA: Record<Direction, [number, number]> = {
   up: [0, -1],
@@ -115,12 +117,20 @@ function endTurn(state: SessionState, updatedEntities: GameEntity[]): SessionSta
   }
 
   // 2. Verificar detección por guardias y cámaras activas
+  let detectedThisTurn = false;
   for (const e of updatedEntities) {
     const active = !e.disabledTurns;
     const seen = e.visionTiles?.some(([vx, vy]) => vx === me.x && vy === me.y);
     if (active && seen && camouflageTurns === 0) {
-      alert += e.type === 'guard' ? 50 : 35;
+      detectedThisTurn = true;
+      // Dificultad justa: +25% por guardia, +20% por cámara (permite recuperarse)
+      alert += e.type === 'guard' ? 25 : 20;
     }
+  }
+
+  // Enfriamiento de alerta: si el jugador permanece oculto/a cubierto, la alerta baja -5% por turno
+  if (!detectedThisTurn && alert > 0) {
+    alert = Math.max(0, alert - 5);
   }
 
   // 3. Verificar si el jugador pisó una trampa
@@ -130,7 +140,7 @@ function endTurn(state: SessionState, updatedEntities: GameEntity[]): SessionSta
     const alreadyRevealed = revealedTraps.some(([tx, ty]) => tx === me.x && ty === me.y);
     if (!alreadyRevealed) {
       revealedTraps.push([me.x, me.y]);
-      alert += 25; // Pisar trampa: +25% de alerta
+      alert += 15; // Pisar trampa: +15% de alerta
     }
   }
 
@@ -147,7 +157,11 @@ function endTurn(state: SessionState, updatedEntities: GameEntity[]): SessionSta
   };
 }
 
-export function mockMove(state: SessionState, dir: Direction): SessionState {
+export function mockMove(
+  state: SessionState,
+  dir: Direction,
+  onRoomTransition?: (nextRoomState: SessionState) => void,
+): SessionState {
   if (state.status !== 'PLAYING') return state;
   const me = state.players[0];
   const [dx, dy] = DIR_DELTA[dir];
@@ -158,25 +172,75 @@ export function mockMove(state: SessionState, dir: Direction): SessionState {
   const tile = state.tiles[ny]?.[nx];
   if (tile === undefined || tile === Tile.WALL || tile === Tile.ABYSS) return state;
 
-  // Verificar si hay una puerta cerrada
+  // Verificar si hay una puerta en la casilla destino
   const entities = [...state.entities];
   let battery = me.battery;
   const doorIndex = entities.findIndex((e) => e.type === 'door' && e.x === nx && e.y === ny);
 
-  if (doorIndex >= 0 && !entities[doorIndex].open) {
-    // En modo demo sin reloj físico: si el jugador intenta pasar por una puerta cerrada y tiene >= 20% de batería,
-    // se simula el hackeo exitoso (gasta 20% de batería y abre la puerta sin gastar turno)
-    if (battery >= 20) {
-      battery -= 20;
-      entities[doorIndex] = { ...entities[doorIndex], open: true };
-      return {
-        ...state,
-        entities,
-        players: [{ ...me, battery }, ...state.players.slice(1)],
-      };
+  if (doorIndex >= 0) {
+    const door = entities[doorIndex];
+
+    // Si la puerta está cerrada: intentar hackearla
+    if (!door.open) {
+      if (battery >= 20) {
+        battery -= 20;
+        entities[doorIndex] = { ...door, open: true };
+
+        // Si es una puerta de enlace a otro cuarto y el jugador la desbloquea:
+        if (door.targetRoom && SECTOR_ROOMS[door.targetRoom]) {
+          const nextRoom = SECTOR_ROOMS[door.targetRoom];
+          const transitionedState: SessionState = {
+            ...nextRoom,
+            sessionId: state.sessionId,
+            alert: state.alert,
+            turn: state.turn + 1,
+            players: [
+              {
+                ...nextRoom.players[0],
+                battery,
+                camouflageTurns: me.camouflageTurns,
+                x: door.targetX ?? nextRoom.players[0].x,
+                y: door.targetY ?? nextRoom.players[0].y,
+              },
+              ...nextRoom.players.slice(1),
+            ],
+          };
+          onRoomTransition?.(transitionedState);
+          return transitionedState;
+        }
+
+        return {
+          ...state,
+          entities,
+          players: [{ ...me, battery }, ...state.players.slice(1)],
+        };
+      }
+      // Sin batería suficiente, no se puede abrir
+      return state;
     }
-    // Si no alcanza la batería, la puerta bloquea el paso
-    return state;
+
+    // Si la puerta ya estaba abierta y tiene destino a otro cuarto:
+    if (door.targetRoom && SECTOR_ROOMS[door.targetRoom]) {
+      const nextRoom = SECTOR_ROOMS[door.targetRoom];
+      const transitionedState: SessionState = {
+        ...nextRoom,
+        sessionId: state.sessionId,
+        alert: state.alert,
+        turn: state.turn + 1,
+        players: [
+          {
+            ...nextRoom.players[0],
+            battery,
+            camouflageTurns: me.camouflageTurns,
+            x: door.targetX ?? nextRoom.players[0].x,
+            y: door.targetY ?? nextRoom.players[0].y,
+          },
+          ...nextRoom.players.slice(1),
+        ],
+      };
+      onRoomTransition?.(transitionedState);
+      return transitionedState;
+    }
   }
 
   // Si hay un nodo de energía en la casilla de destino

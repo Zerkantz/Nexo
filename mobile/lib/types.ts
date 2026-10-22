@@ -58,6 +58,9 @@ export interface GameEntity {
   path?: Point[]; // ruta de patrulla de guardias y drones
   pathIndex?: number;
   rotating?: boolean; // cámaras rotativas
+  targetRoom?: string; // cambio de cuarto / sector
+  targetX?: number;
+  targetY?: number;
 }
 
 export interface SessionPlayer {
@@ -81,6 +84,8 @@ export interface SessionState {
   alert: number;
   status: SessionStatus;
   theme: string;
+  roomName?: string; // Nombre del sector o cuarto actual
+  roomId?: string; // ID del cuarto (ej. 'sector_1', 'sector_2')
   width: number;
   height: number;
   tiles: number[][]; // tiles[y][x]
