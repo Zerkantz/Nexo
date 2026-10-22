@@ -1,6 +1,6 @@
 // HUD: turno, batería, alerta (cambia de color) y aviso de lo que hay que hacer en el reloj.
 import { StyleSheet, Text, View } from 'react-native';
-import { Battery, Watch } from 'lucide-react-native';
+import { Battery, ShieldAlert, Watch } from 'lucide-react-native';
 import {
   alertLabel,
   colors,
@@ -59,7 +59,7 @@ export function Hud({ state, me }: Props) {
 
       {/* Alerta */}
       <View style={styles.barRow}>
-        <Text style={[styles.barIcon, { color: alertColor }]}>!</Text>
+        <ShieldAlert size={16} color={alertColor} />
         <View style={styles.barTrack}>
           <View style={[styles.barFill, { width: `${state.alert}%`, backgroundColor: alertColor }]} />
         </View>
@@ -100,11 +100,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  barIcon: {
-    width: 16,
-    textAlign: 'center',
-    fontWeight: '900',
   },
   barTrack: {
     flex: 1,

@@ -1,7 +1,18 @@
 // Modal de victoria o derrota (evento `game:ended`).
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { CreditCard, Database, Sparkles, Zap, type LucideIcon } from 'lucide-react-native';
 import { colors, withAlpha } from '../../theme/colors';
 import type { GameEnded } from '../../lib/types';
+
+function Reward({ Icon, color, value, label }: { Icon: LucideIcon; color: string; value: number; label: string }) {
+  return (
+    <View style={styles.rewardItem}>
+      <Icon size={22} color={color} />
+      <Text style={styles.reward}>{value}</Text>
+      <Text style={styles.rewardLabel}>{label}</Text>
+    </View>
+  );
+}
 
 interface Props {
   result: GameEnded | null;
@@ -25,13 +36,16 @@ export function ResultModal({ result, onBack, onRetry }: Props) {
           </Text>
 
           <View style={styles.rewards}>
-            <Text style={styles.reward}>💳 {result.rewards.credits}</Text>
-            <Text style={styles.reward}>⚡ {result.rewards.energy}</Text>
-            <Text style={styles.reward}>💾 {result.rewards.intel}</Text>
+            <Reward Icon={CreditCard} color="#FFD700" value={result.rewards.credits} label="Créditos" />
+            <Reward Icon={Zap} color={colors.stealth} value={result.rewards.energy} label="Energía" />
+            <Reward Icon={Database} color={colors.success} value={result.rewards.intel} label="Información" />
           </View>
 
           {result.unlockedSkill && (
-            <Text style={styles.unlocked}>Nueva habilidad desbloqueada: {result.unlockedSkill}</Text>
+            <View style={styles.unlockedRow}>
+              <Sparkles size={16} color={colors.stealth} />
+              <Text style={styles.unlocked}>Nueva habilidad desbloqueada: {result.unlockedSkill}</Text>
+            </View>
           )}
 
           {onRetry && (
@@ -81,13 +95,26 @@ const styles = StyleSheet.create({
   },
   rewards: {
     flexDirection: 'row',
-    gap: 18,
+    gap: 24,
     marginVertical: 8,
+  },
+  rewardItem: {
+    alignItems: 'center',
+    gap: 4,
   },
   reward: {
     color: colors.text,
     fontSize: 18,
     fontWeight: '700',
+  },
+  rewardLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+  },
+  unlockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   unlocked: {
     color: colors.stealth,

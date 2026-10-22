@@ -3,6 +3,7 @@
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BookOpen, Play } from 'lucide-react-native';
 import { colors, withAlpha } from '../theme/colors';
 import { API_URL } from '../lib/config';
 
@@ -17,7 +18,14 @@ export default function Index() {
       <View style={styles.menu}>
         <Link href="/game/demo" asChild>
           <Pressable style={styles.button}>
+            <Play size={18} color={colors.stealth} />
             <Text style={styles.buttonText}>Probar tablero (datos falsos)</Text>
+          </Pressable>
+        </Link>
+        <Link href="/how-to-play" asChild>
+          <Pressable style={StyleSheet.flatten([styles.button, styles.secondary])}>
+            <BookOpen size={18} color={colors.text} />
+            <Text style={[styles.buttonText, { color: colors.text }]}>Cómo jugar</Text>
           </Pressable>
         </Link>
       </View>
@@ -55,12 +63,19 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   button: {
+    flexDirection: 'row',
+    gap: 10,
+    justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: colors.stealth,
     backgroundColor: withAlpha(colors.stealth, 0.12),
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
+  },
+  secondary: {
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: colors.panel,
   },
   buttonText: {
     color: colors.stealth,

@@ -1,4 +1,4 @@
-// ⚠️ SOLO PARA PRUEBAS. Simula de forma MUY simplificada lo que hará el servidor
+// AVISO: SOLO PARA PRUEBAS. Simula de forma MUY simplificada lo que hará el servidor
 // para poder probar los controles y el HUD sin backend.
 // En el juego real el móvil solo manda `game:move` / `game:wait` y dibuja lo que llega.
 import { Tile, type Direction, type SessionState } from '../lib/types';

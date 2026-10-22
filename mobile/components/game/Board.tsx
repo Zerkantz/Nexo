@@ -3,8 +3,9 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Flag } from 'lucide-react-native';
 import { colors, getLevelAccent, withAlpha } from '../../theme/colors';
-import { Tile, type Direction, type SessionPlayer, type SessionState } from '../../lib/types';
+import { Tile, type Direction, type Point, type SessionPlayer, type SessionState } from '../../lib/types';
 import { EntityIcon } from './EntityIcon';
+import { TileHighlight } from './TileHighlight';
 
 const PLAYER_COLORS: Record<1 | 2, string> = {
   1: colors.stealth,
@@ -17,6 +18,9 @@ interface Props {
   tileSize: number;
   /** Tocar una casilla vecina al jugador = moverse en esa dirección */
   onMove?: (dir: Direction) => void;
+  /** Casillas que parpadean (tutorial) */
+  highlightTiles?: Point[];
+  highlightColor?: string;
 }
 
 /** Dirección hacia una casilla vecina (o null si no es vecina) */
@@ -30,7 +34,7 @@ function directionTo(me: SessionPlayer, x: number, y: number): Direction | null 
   return null;
 }
 
-export function Board({ state, me, tileSize, onMove }: Props) {
+export function Board({ state, me, tileSize, onMove, highlightTiles = [], highlightColor = colors.text }: Props) {
   const accent = getLevelAccent(state.theme);
   const boardW = state.width * tileSize;
   const boardH = state.height * tileSize;
@@ -125,6 +129,17 @@ export function Board({ state, me, tileSize, onMove }: Props) {
           </View>
         );
       })}
+
+      {/* 6. Casillas señaladas por el tutorial */}
+      {highlightTiles.map(([hx, hy]) => (
+        <TileHighlight
+          key={`h-${hx}-${hy}`}
+          left={hx * tileSize}
+          top={hy * tileSize}
+          size={tileSize}
+          color={highlightColor}
+        />
+      ))}
     </View>
   );
 }

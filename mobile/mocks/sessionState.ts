@@ -1,4 +1,4 @@
-// ⚠️ SOLO PARA PRUEBAS. Estado falso de `session:state` para dibujar el tablero
+// AVISO: SOLO PARA PRUEBAS. Estado falso de `session:state` para dibujar el tablero
 // mientras el backend (Integrante 3) no está listo. Usa el mapa de ejemplo de la sección 13.
 import type { SessionState } from '../lib/types';
 
