@@ -1,5 +1,6 @@
 // Tablero 2D: dibuja `tiles`, conos de visión, trampas, entidades y jugadores.
-// Incluye animación rápida tipo ajedrez al avanzar celdas y remarcado perimetral.
+// Incluye animación rápida tipo ajedrez al avanzar celdas, remarcado perimetral reforzado
+// y compuertas de cambio de cuarto con borde/cara morada sin ícono de puerta.
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Flag } from 'lucide-react-native';
@@ -7,6 +8,8 @@ import { colors, getLevelAccent, withAlpha } from '../../theme/colors';
 import { Tile, type Direction, type Point, type SessionPlayer, type SessionState } from '../../lib/types';
 import { EntityIcon } from './EntityIcon';
 import { TileHighlight } from './TileHighlight';
+
+const PORTAL_PURPLE = '#BD00FF';
 
 const PLAYER_COLORS: Record<1 | 2, string> = {
   1: colors.stealth,
@@ -92,12 +95,17 @@ export function Board({ state, me, tileSize, onMove, highlightTiles = [], highli
 
   return (
     <View style={[styles.board, { width: boardW, height: boardH, borderColor: withAlpha(accent, 0.8) }]}>
-      {/* 1. Casillas con remarcado perimetral reforzado */}
+      {/* 1. Casillas del mapa con remarcado perimetral y compuertas moradas */}
       {state.tiles.map((row, y) =>
         row.map((code, x) => {
           const dir = me ? directionTo(me, x, y) : null;
           const walkable = code !== Tile.WALL && code !== Tile.ABYSS;
           const isPerimeter = x === 0 || x === state.width - 1 || y === 0 || y === state.height - 1;
+
+          // ¿Esta casilla es una compuerta de cambio de cuarto?
+          const portalDoor = state.entities.find(
+            (e) => (e.type === 'door' || e.type === 'dual_door') && e.targetRoom && e.x === x && e.y === y,
+          );
 
           return (
             <Pressable
@@ -109,16 +117,27 @@ export function Board({ state, me, tileSize, onMove, highlightTiles = [], highli
                 at(x, y),
                 tileStyle(code, accent),
                 isPerimeter ? perimeterStyle(x, y, state.width, state.height, accent) : null,
+                portalDoor ? portalFaceStyle(x, y, state.width, state.height) : null,
                 dir && walkable ? { borderColor: withAlpha(accent, 0.75), backgroundColor: withAlpha(accent, 0.1) } : null,
               ]}
             >
               {code === Tile.EXTRACTION && <Flag size={iconSize} color={colors.success} />}
+
+              {/* Barra de umbral morada de la compuerta a otro cuarto */}
+              {portalDoor && (
+                <View
+                  style={[
+                    styles.portalThresholdBar,
+                    portalThresholdPlacement(x, y, state.width, state.height),
+                  ]}
+                />
+              )}
             </Pressable>
           );
         }),
       )}
 
-      {/* 2. Conos de visión */}
+      {/* 2. Conos de visión proyectados */}
       {state.entities
         .filter((e) => e.visionTiles && !e.disabledTurns)
         .flatMap((e) =>
@@ -142,16 +161,16 @@ export function Board({ state, me, tileSize, onMove, highlightTiles = [], highli
         </View>
       ))}
 
-      {/* 4. Entidades estáticas (puertas, terminales, cámaras, energía) */}
+      {/* 4. Entidades estáticas normales (sin puertas de enlace, esas usan cara morada) */}
       {state.entities
-        .filter((e) => e.type !== 'guard' && e.type !== 'drone')
+        .filter((e) => e.type !== 'guard' && e.type !== 'drone' && !e.targetRoom)
         .map((e) => (
           <View key={e.id} pointerEvents="none" style={[styles.overlay, styles.center, at(e.x, e.y)]}>
             <EntityIcon entity={e} size={iconSize} />
           </View>
         ))}
 
-      {/* 5. Entidades móviles (Guardias y Drones con animación tipo ajedrez) */}
+      {/* 5. Entidades móviles (Guardias con animación de deslizamiento tipo ajedrez) */}
       {state.entities
         .filter((e) => e.type === 'guard' || e.type === 'drone')
         .map((e) => (
@@ -223,6 +242,44 @@ function perimeterStyle(x: number, y: number, w: number, h: number, accent: stri
   };
 }
 
+/** Pinta de morado la cara de la celda donde está la compuerta a otro cuarto */
+function portalFaceStyle(x: number, y: number, w: number, h: number) {
+  const base = {
+    backgroundColor: withAlpha(PORTAL_PURPLE, 0.2),
+  };
+
+  if (x === w - 1) {
+    return { ...base, borderRightWidth: 4.5, borderRightColor: PORTAL_PURPLE };
+  }
+  if (x === 0) {
+    return { ...base, borderLeftWidth: 4.5, borderLeftColor: PORTAL_PURPLE };
+  }
+  if (y === 0) {
+    return { ...base, borderTopWidth: 4.5, borderTopColor: PORTAL_PURPLE };
+  }
+  if (y === h - 1) {
+    return { ...base, borderBottomWidth: 4.5, borderBottomColor: PORTAL_PURPLE };
+  }
+  return { ...base, borderRightWidth: 4.5, borderRightColor: PORTAL_PURPLE };
+}
+
+/** Posición de la barra luminosa morada en la cara de la compuerta */
+function portalThresholdPlacement(x: number, y: number, w: number, h: number) {
+  if (x === w - 1) {
+    return { right: 0, top: 0, bottom: 0, width: 4.5 };
+  }
+  if (x === 0) {
+    return { left: 0, top: 0, bottom: 0, width: 4.5 };
+  }
+  if (y === 0) {
+    return { top: 0, left: 0, right: 0, height: 4.5 };
+  }
+  if (y === h - 1) {
+    return { bottom: 0, left: 0, right: 0, height: 4.5 };
+  }
+  return { right: 0, top: 0, bottom: 0, width: 4.5 };
+}
+
 const styles = StyleSheet.create({
   board: {
     position: 'relative',
@@ -259,5 +316,13 @@ const styles = StyleSheet.create({
     width: '36%',
     height: '36%',
     borderRadius: 999,
+  },
+  portalThresholdBar: {
+    position: 'absolute',
+    backgroundColor: PORTAL_PURPLE,
+    shadowColor: PORTAL_PURPLE,
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 6,
   },
 });
