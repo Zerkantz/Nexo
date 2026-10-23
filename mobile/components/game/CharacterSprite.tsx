@@ -48,21 +48,21 @@ export function CharacterSprite({
     }
 
     if (isMoving) {
-      // Ciclo de caminata rápido (4 frames en ~160ms = ~40ms por frame)
+      // Ciclo de caminata natural y legible (estilo arcade Metal Slug ~110ms por paso)
       frameTimerRef.current = setInterval(() => {
         setFrameIndex((prev) => (prev + 1) % 4);
-      }, 40);
+      }, 110);
     } else if (isHacking) {
-      // Ciclo de hackeo continuo
+      // Ciclo de hackeo continuo y rítmico
       frameTimerRef.current = setInterval(() => {
         setFrameIndex((prev) => (prev + 1) % 4);
-      }, 90);
+      }, 160);
     } else {
-      // En reposo, mostrar frame 0 o respiración lenta
+      // En reposo, mostrar frame 0 con sutil cambio en guardia
       setFrameIndex(0);
       frameTimerRef.current = setInterval(() => {
         setFrameIndex((prev) => (prev + 1) % 4);
-      }, 350);
+      }, 550);
     }
 
     return () => {

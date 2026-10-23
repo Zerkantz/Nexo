@@ -46,6 +46,13 @@ export default function Index() {
       </View>
 
       <View style={styles.menu}>
+        <Link href={'/character-select?next=/game/demo' as any} asChild>
+          <Pressable style={styles.button}>
+            <Play size={18} color={colors.stealth} />
+            <Text style={styles.buttonText}>INICIAR NIVEL 1 // OPERACIÓN</Text>
+          </Pressable>
+        </Link>
+
         <Link href={'/character-select' as any} asChild>
           <Pressable
             style={StyleSheet.flatten([
@@ -55,13 +62,6 @@ export default function Index() {
           >
             <Users size={18} color={activeChar.accentColor} />
             <Text style={[styles.buttonText, { color: activeChar.accentColor }]}>Selección de Agente (32-Bit)</Text>
-          </Pressable>
-        </Link>
-
-        <Link href="/game/demo" asChild>
-          <Pressable style={styles.button}>
-            <Play size={18} color={colors.stealth} />
-            <Text style={styles.buttonText}>Desplegar Operación (12×12)</Text>
           </Pressable>
         </Link>
 

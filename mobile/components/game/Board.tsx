@@ -47,7 +47,7 @@ function AnimatedPiece({
   useEffect(() => {
     Animated.timing(anim, {
       toValue: { x: x * tileSize, y: y * tileSize },
-      duration: 160, // Rápido y fluido, estilo ajedrez táctico
+      duration: 220, // Deslizamiento táctico fluido tipo ajedrez arcade
       easing: Easing.out(Easing.cubic),
       useNativeDriver: Platform.OS !== 'web',
     }).start();
@@ -106,11 +106,11 @@ function AnimatedPlayerPiece({
     if (dx !== 0 || dy !== 0) {
       setFacing(newDir);
       setIsMoving(true);
-      const timer = setTimeout(() => setIsMoving(false), 170);
+      const timer = setTimeout(() => setIsMoving(false), 240);
 
       Animated.timing(anim, {
         toValue: { x: x * tileSize, y: y * tileSize },
-        duration: 160,
+        duration: 220,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: Platform.OS !== 'web',
       }).start();
