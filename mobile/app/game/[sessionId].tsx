@@ -1,9 +1,10 @@
 // Pantalla de juego: HUD + tablero + cruceta. Todo se dibuja desde `session:state`.
 // Encima van las cartas del tutorial y la animación de transición de cuartos.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   ActivityIndicator,
+  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -23,6 +24,12 @@ import { TipCard } from '../../components/tutorial/TipCard';
 import { useGameSession } from '../../hooks/useGameSession';
 import { useTutorial } from '../../hooks/useTutorial';
 import { colors, getLevelAccent } from '../../theme/colors';
+import {
+  CHARACTERS,
+  getCharacterAvatar,
+  getSelectedCharacter,
+  type CharacterId,
+} from '../../lib/characters';
 
 export default function GameScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
@@ -40,6 +47,11 @@ export default function GameScreen() {
   } = useGameSession(sessionId ?? '');
   const { width, height } = useWindowDimensions();
   const [guideOpen, setGuideOpen] = useState(false);
+  const [characterId, setCharacterId] = useState<CharacterId>('jesus');
+
+  useEffect(() => {
+    getSelectedCharacter().then(setCharacterId);
+  }, []);
 
   const me = state?.players[0];
   const tutorial = useTutorial(state, me);
@@ -81,6 +93,12 @@ export default function GameScreen() {
           <ArrowLeft size={24} color={colors.text} />
         </Pressable>
         <View style={styles.titleBox}>
+          <View style={styles.agentTagRow}>
+            <Image source={getCharacterAvatar(characterId)} style={styles.agentAvatar} />
+            <Text style={[styles.agentNameTag, { color: CHARACTERS[characterId].accentColor }]}>
+              {CHARACTERS[characterId].name.toUpperCase()}
+            </Text>
+          </View>
           <Text style={[styles.title, { color: accent }]}>{state.roomName ?? 'BÓVEDA CENTRAL'}</Text>
           {isDemo && <Text style={styles.demoTag}>DEMO · SECTOR</Text>}
         </View>
@@ -96,6 +114,7 @@ export default function GameScreen() {
           state={state}
           me={me}
           tileSize={tileSize}
+          characterId={characterId}
           onMove={canPlay ? move : undefined}
           highlightTiles={tutorial.highlightTiles}
           highlightColor={tutorial.current?.color}
@@ -179,6 +198,24 @@ const styles = StyleSheet.create({
   },
   titleBox: {
     alignItems: 'center',
+  },
+  agentTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  agentAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  agentNameTag: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.5,
   },
   title: {
     fontSize: 14,

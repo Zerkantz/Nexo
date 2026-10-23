@@ -1,11 +1,13 @@
 // Tablero 2D: dibuja `tiles`, conos de visión, trampas, entidades y jugadores.
 // Incluye animación rápida tipo ajedrez al avanzar celdas, remarcado perimetral reforzado
 // y compuertas de cambio de cuarto con borde/cara morada sin ícono de puerta.
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Flag } from 'lucide-react-native';
 import { colors, getLevelAccent, withAlpha } from '../../theme/colors';
 import { Tile, type Direction, type Point, type SessionPlayer, type SessionState } from '../../lib/types';
+import type { CharacterId } from '../../lib/characters';
+import { CharacterSprite } from './CharacterSprite';
 import { EntityIcon } from './EntityIcon';
 import { TileHighlight } from './TileHighlight';
 
@@ -20,6 +22,7 @@ interface Props {
   state: SessionState;
   me: SessionPlayer | undefined;
   tileSize: number;
+  characterId?: CharacterId;
   /** Tocar una casilla vecina al jugador = moverse en esa dirección */
   onMove?: (dir: Direction) => void;
   /** Casillas que parpadean (tutorial) */
@@ -68,6 +71,95 @@ function AnimatedPiece({
   );
 }
 
+/** Pieza animada del jugador con sprite 32-bit y orientación según la dirección de movimiento */
+function AnimatedPlayerPiece({
+  x,
+  y,
+  tileSize,
+  slot,
+  characterId,
+  camouflageTurns,
+}: {
+  x: number;
+  y: number;
+  tileSize: number;
+  slot: 1 | 2;
+  characterId: CharacterId;
+  camouflageTurns: number;
+}) {
+  const anim = useRef(new Animated.ValueXY({ x: x * tileSize, y: y * tileSize })).current;
+  const prevPos = useRef({ x, y });
+  const [facing, setFacing] = useState<Direction>('down');
+  const [isMoving, setIsMoving] = useState(false);
+
+  useEffect(() => {
+    const dx = x - prevPos.current.x;
+    const dy = y - prevPos.current.y;
+    prevPos.current = { x, y };
+
+    let newDir: Direction = facing;
+    if (dx > 0) newDir = 'right';
+    else if (dx < 0) newDir = 'left';
+    else if (dy > 0) newDir = 'down';
+    else if (dy < 0) newDir = 'up';
+
+    if (dx !== 0 || dy !== 0) {
+      setFacing(newDir);
+      setIsMoving(true);
+      const timer = setTimeout(() => setIsMoving(false), 170);
+
+      Animated.timing(anim, {
+        toValue: { x: x * tileSize, y: y * tileSize },
+        duration: 160,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: Platform.OS !== 'web',
+      }).start();
+
+      return () => clearTimeout(timer);
+    }
+  }, [x, y, tileSize, anim, facing]);
+
+  const color = PLAYER_COLORS[slot];
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.overlay,
+        styles.center,
+        {
+          width: tileSize,
+          height: tileSize,
+          transform: [{ translateX: anim.x }, { translateY: anim.y }],
+          opacity: camouflageTurns > 0 ? 0.45 : 1,
+        },
+      ]}
+    >
+      {/* Halo táctico en la base del suelo */}
+      <View
+        style={[
+          styles.playerBaseHalo,
+          {
+            width: tileSize * 0.72,
+            height: tileSize * 0.72,
+            borderRadius: (tileSize * 0.72) / 2,
+            borderColor: color,
+            backgroundColor: withAlpha(color, 0.22),
+            shadowColor: color,
+          },
+        ]}
+      />
+      {/* Sprite 32-bit pixel art */}
+      <CharacterSprite
+        characterId={characterId}
+        direction={facing}
+        isMoving={isMoving}
+        size={tileSize * 0.95}
+      />
+    </Animated.View>
+  );
+}
+
 /** Dirección hacia una casilla vecina (o null si no es vecina) */
 function directionTo(me: SessionPlayer, x: number, y: number): Direction | null {
   const dx = x - me.x;
@@ -79,7 +171,15 @@ function directionTo(me: SessionPlayer, x: number, y: number): Direction | null 
   return null;
 }
 
-export function Board({ state, me, tileSize, onMove, highlightTiles = [], highlightColor = colors.text }: Props) {
+export function Board({
+  state,
+  me,
+  tileSize,
+  characterId = 'jesus',
+  onMove,
+  highlightTiles = [],
+  highlightColor = colors.text,
+}: Props) {
   const accent = getLevelAccent(state.theme);
   const boardW = state.width * tileSize;
   const boardH = state.height * tileSize;
@@ -179,29 +279,19 @@ export function Board({ state, me, tileSize, onMove, highlightTiles = [], highli
           </AnimatedPiece>
         ))}
 
-      {/* 6. Jugadores con animación tipo ajedrez */}
+      {/* 6. Jugadores con sprite 32-bit y animación de deslizamiento tipo ajedrez */}
       {state.players.map((p) => {
-        const color = PLAYER_COLORS[p.slot];
-        const dot = tileSize * 0.62;
+        const charId = p.slot === 1 ? characterId : 'vicente';
         return (
-          <AnimatedPiece key={`p-${p.playerId}`} x={p.x} y={p.y} tileSize={tileSize}>
-            <View
-              style={[
-                styles.player,
-                {
-                  width: dot,
-                  height: dot,
-                  borderRadius: dot / 2,
-                  borderColor: color,
-                  backgroundColor: withAlpha(color, 0.28),
-                  shadowColor: color,
-                  opacity: p.camouflageTurns > 0 ? 0.4 : 1,
-                },
-              ]}
-            >
-              <View style={[styles.playerCore, { backgroundColor: color }]} />
-            </View>
-          </AnimatedPiece>
+          <AnimatedPlayerPiece
+            key={`p-${p.playerId}`}
+            x={p.x}
+            y={p.y}
+            tileSize={tileSize}
+            slot={p.slot}
+            characterId={charId}
+            camouflageTurns={p.camouflageTurns}
+          />
         );
       })}
 
@@ -316,6 +406,14 @@ const styles = StyleSheet.create({
     width: '36%',
     height: '36%',
     borderRadius: 999,
+  },
+  playerBaseHalo: {
+    position: 'absolute',
+    borderWidth: 1.5,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
+    elevation: 4,
   },
   portalThresholdBar: {
     position: 'absolute',
