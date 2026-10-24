@@ -1,8 +1,8 @@
-// Componente de Sprite Animado 32-bit para personajes de NEXO.
+// Componente de Sprite Animado 16-bit para personajes principales de NEXO.
 // Soporta los 4 operadores (Jesús, Vicente, Francisco, Alberto)
-// y sus 6 acciones (down, up, right, left, hack, idle) con 4 frames de animación.
+// con sprites centrados y animaciones direccionales limpias.
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import type { Direction } from '../../lib/types';
 import {
   getCharacterSprites,
@@ -36,11 +36,10 @@ export function CharacterSprite({
     activeAction = 'hack';
   } else if (action) {
     activeAction = action;
-  } else if (isMoving || direction) {
+  } else if (direction) {
     activeAction = direction as ActionType;
   }
 
-  // Ciclo de animación de frames
   useEffect(() => {
     if (frameTimerRef.current) {
       clearInterval(frameTimerRef.current);
@@ -48,21 +47,18 @@ export function CharacterSprite({
     }
 
     if (isMoving) {
-      // Ciclo de caminata natural y legible (estilo arcade Metal Slug ~110ms por paso)
+      // Animar los 4 frames de caminata durante el desplazamiento entre casillas
+      setFrameIndex(1);
       frameTimerRef.current = setInterval(() => {
         setFrameIndex((prev) => (prev + 1) % 4);
-      }, 110);
+      }, 65);
     } else if (isHacking) {
-      // Ciclo de hackeo continuo y rítmico
       frameTimerRef.current = setInterval(() => {
         setFrameIndex((prev) => (prev + 1) % 4);
-      }, 160);
+      }, 150);
     } else {
-      // En reposo, mostrar frame 0 con sutil cambio en guardia
+      // En reposo sobre la casilla, mantener la postura firme mirando en su dirección actual
       setFrameIndex(0);
-      frameTimerRef.current = setInterval(() => {
-        setFrameIndex((prev) => (prev + 1) % 4);
-      }, 550);
     }
 
     return () => {
@@ -81,8 +77,8 @@ export function CharacterSprite({
       <Image
         source={currentFrame}
         style={{
-          width: size * 1.05,
-          height: size * 1.05,
+          width: size * 0.94,
+          height: size * 0.94,
           resizeMode: 'contain',
         }}
       />

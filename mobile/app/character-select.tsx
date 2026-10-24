@@ -1,9 +1,8 @@
-// Selector de Personaje en Horizontal (Landscape) estilo Metal Slug:
-// - Muestra las 4 tarjetas completas de los personajes lado a lado.
-// - El jugador puede tocar cualquier personaje y cambiar de elección libremente:
-//   la tarjeta seleccionada sube unos píxeles hacia arriba y cambia a su pose de seleccionado.
-// - En la esquina inferior derecha se ubica el botón "COMENZAR", el cual activa
-//   la transición con pantalla negra hacia la partida.
+// Selector de Personaje en Horizontal (Landscape):
+// - Título "PLAYER SELECT" y las 4 tarjetas 100% centradas en la pantalla.
+// - Al tocar cualquier personaje, su tarjeta se eleva hacia arriba y muestra su pose seleccionada
+//   sin iniciar aún la partida (permitiendo cambiar de agente libremente).
+// - El botón "COMENZAR" se ubica en la esquina inferior derecha y activa el fundido a negro.
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -87,11 +86,10 @@ export default function CharacterSelectScreen() {
   return (
     <View style={styles.root}>
       <StatusBar hidden />
-      {/* Franja superior de advertencia Metal Slug */}
       <View style={styles.hazardTop} />
 
       <SafeAreaView style={styles.safeArea}>
-        {/* Cabecera minimalista Arcade */}
+        {/* Cabecera con título PLAYER SELECT 100% centrado */}
         <View style={styles.header}>
           <Pressable
             onPress={() => !isStarting && router.back()}
@@ -103,7 +101,7 @@ export default function CharacterSelectScreen() {
           <View style={styles.headerRightSpacer} />
         </View>
 
-        {/* Fila horizontal con las 4 tarjetas completas */}
+        {/* Fila horizontal con las 4 tarjetas 100% centradas */}
         <View style={styles.cardsRow}>
           {CHARACTER_LIST.map((char) => {
             const isSelected = chosenId === char.id;
@@ -140,7 +138,7 @@ export default function CharacterSelectScreen() {
           })}
         </View>
 
-        {/* Botón de COMENZAR flotante en la esquina inferior derecha */}
+        {/* Botón COMENZAR en la esquina inferior derecha */}
         <View style={styles.bottomRightCorner}>
           <Pressable
             disabled={isStarting}
@@ -151,7 +149,7 @@ export default function CharacterSelectScreen() {
             ]}
           >
             <Text style={styles.startCornerBtnText}>COMENZAR</Text>
-            <Play size={16} color="#ffffff" fill="#ffffff" />
+            <Play size={15} color="#ffffff" fill="#ffffff" />
           </Pressable>
         </View>
       </SafeAreaView>
@@ -181,8 +179,8 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 10,
+    paddingHorizontal: 18,
+    paddingBottom: 8,
     justifyContent: 'space-between',
   },
   header: {
@@ -206,6 +204,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: 3,
+    textAlign: 'center',
     textShadowColor: '#000',
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 2,
@@ -219,9 +218,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 14,
-    paddingTop: 14,
-    paddingBottom: 6,
-    paddingRight: 115,
+    paddingTop: 12,
+    paddingBottom: 10,
   },
   cardWrapper: {
     height: '100%',
@@ -229,7 +227,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardFrame: {
-    height: '92%',
+    height: '86%',
     aspectRatio: 440 / 980,
     backgroundColor: '#12161b',
     borderWidth: 3,
@@ -279,20 +277,20 @@ const styles = StyleSheet.create({
   },
   bottomRightCorner: {
     position: 'absolute',
-    right: 20,
-    bottom: 14,
+    right: 16,
+    bottom: 12,
     zIndex: 30,
   },
   startCornerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
     backgroundColor: '#d83800',
     borderWidth: 2.5,
     borderColor: '#ffcc00',
     borderRadius: 8,
-    paddingVertical: 11,
-    paddingHorizontal: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.9,
@@ -305,9 +303,9 @@ const styles = StyleSheet.create({
   },
   startCornerBtnText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
     textShadowColor: '#000',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,

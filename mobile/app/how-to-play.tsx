@@ -1,11 +1,11 @@
-// Pantalla "Cómo jugar" (accesible desde el inicio).
+// Pantalla "Cómo jugar" (accesible desde el botón ? del inicio).
 import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
 import { HowToPlayGuide } from '../components/tutorial/HowToPlayGuide';
 import { resetTutorialProgress } from '../hooks/useTutorial';
-import { colors } from '../theme/colors';
 
 export default function HowToPlayScreen() {
   const onReset = async () => {
@@ -17,12 +17,16 @@ export default function HowToPlayScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar hidden />
       <View style={styles.topBar}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} hitSlop={12}>
-          <ArrowLeft size={24} color={colors.text} />
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          style={styles.backBtn}
+        >
+          <ArrowLeft size={20} color="#ffcc00" />
         </Pressable>
-        <Text style={styles.title}>CÓMO JUGAR</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.title}>MANUAL TÁCTICO // CÓMO JUGAR</Text>
+        <View style={{ width: 36 }} />
       </View>
       <HowToPlayGuide onResetTutorial={onReset} />
     </SafeAreaView>
@@ -32,7 +36,7 @@ export default function HowToPlayScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#090c11',
   },
   topBar: {
     flexDirection: 'row',
@@ -40,11 +44,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1f2a38',
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#151d27',
+    borderWidth: 1.5,
+    borderColor: '#3a4a5e',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
-    color: colors.stealth,
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 3,
+    color: '#ffcc00',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 2,
   },
 });

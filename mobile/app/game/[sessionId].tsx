@@ -1,8 +1,9 @@
-// Pantalla de Juego en Formato Horizontal (Landscape) estilo 15/32-Bit:
-// - Oculta la barra de estado del sistema para aprovechar el 100% del alto de pantalla.
-// - Columna Izquierda: Navegación, Ficha del Agente y HUD Táctico compacto.
-// - Columna Central: Tablero 12x12 autoajustado al espacio real disponible (sin encimarse con paneles).
-// - Columna Derecha: Cruceta de control ergonómica y leyenda visual rápida del mapa.
+// Pantalla de Juego en Formato Horizontal (Landscape) estilo 16-Bit:
+// - Columna Izquierda: Botón de PAUSA + Título del Sector arriba, HUD táctico al centro,
+//   y tarjeta de "AGENTE EN CAMPO" ubicada en la esquina inferior izquierda.
+// - Columna Central: Tablero 12x12 con estética 16-bit y elementos rediseñados.
+// - Columna Derecha: Cruceta de control ergonómica y leyenda visual.
+// - Menú de Pausa: Permite Reanudar, abrir el "Cómo Jugar" actualizado, Reiniciar o Salir al Inicio.
 import React, { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -19,7 +20,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, CircleHelp, X } from 'lucide-react-native';
+import { BookOpen, Home, Pause, Play, RotateCcw, X } from 'lucide-react-native';
 import { Board } from '../../components/game/Board';
 import { DPad } from '../../components/game/DPad';
 import { Hud } from '../../components/game/Hud';
@@ -52,6 +53,7 @@ export default function GameScreen() {
     resetDemo,
   } = useGameSession(sessionId ?? '');
   const { width, height } = useWindowDimensions();
+  const [pauseOpen, setPauseOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [characterId, setCharacterId] = useState<CharacterId>('jesus');
   const [centerSize, setCenterSize] = useState<{ w: number; h: number } | null>(null);
@@ -72,10 +74,11 @@ export default function GameScreen() {
   const me = state?.players[0];
   const tutorial = useTutorial(state, me);
 
-  const goBack = () => {
+  const exitToMainMenu = () => {
+    setPauseOpen(false);
+    setGuideOpen(false);
     leave();
-    if (router.canGoBack()) router.back();
-    else router.replace('/');
+    router.replace('/');
   };
 
   if (!state) {
@@ -103,30 +106,37 @@ export default function GameScreen() {
   const tileSize = Math.max(16, Math.floor(boardBudget / Math.max(state.width, state.height)));
 
   const showingTip = !!tutorial.current;
-  const canPlay = state.status === 'PLAYING' && !showingTip && !transitioningRoom;
+  const canPlay =
+    state.status === 'PLAYING' && !showingTip && !transitioningRoom && !pauseOpen && !guideOpen;
   const activeChar = CHARACTERS[characterId];
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar hidden />
       <View style={styles.landscapeLayout}>
-        {/* 1. Panel Izquierdo: Navegación, Ficha del Agente y HUD */}
+        {/* 1. Panel Izquierdo: PAUSA arriba, HUD al centro y AGENTE EN CAMPO en la esquina inferior izquierda */}
         <View style={styles.leftSidebar}>
+          {/* Fila superior: Botón de Pausa y Nombre del Sector */}
           <View style={styles.navRow}>
-            <Pressable onPress={goBack} style={styles.iconBtn}>
-              <ArrowLeft size={18} color="#ffcc00" />
+            <Pressable
+              onPress={() => setPauseOpen(true)}
+              style={styles.pauseBtn}
+              accessibilityLabel="Pausar partida"
+            >
+              <Pause size={16} color="#ffcc00" fill="#ffcc00" />
+              <Text style={styles.pauseBtnText}>PAUSA</Text>
             </Pressable>
             <View style={styles.sectorBadge}>
               <Text style={styles.sectorLabel} numberOfLines={2}>
                 {state.roomName ?? 'BÓVEDA CENTRAL'}
               </Text>
             </View>
-            <Pressable onPress={() => setGuideOpen(true)} style={styles.iconBtn}>
-              <CircleHelp size={18} color="#ffcc00" />
-            </Pressable>
           </View>
 
-          {/* Ficha del Operador Activo */}
+          {/* HUD de Turno, Energía, Alerta y Reloj */}
+          <Hud state={state} me={me} />
+
+          {/* Esquina Inferior Izquierda: Tarjeta de AGENTE EN CAMPO */}
           <View style={styles.agentBanner}>
             <Image source={getCharacterAvatar(characterId)} style={styles.agentAvatar} />
             <View style={{ flex: 1 }}>
@@ -137,12 +147,9 @@ export default function GameScreen() {
               </Text>
             </View>
           </View>
-
-          {/* HUD de Turno, Batería, Alerta y Reloj */}
-          <Hud state={state} me={me} />
         </View>
 
-        {/* 2. Columna Central: Tablero 12x12 estilo 15-bit */}
+        {/* 2. Columna Central: Tablero 12x12 estilo 16-bit */}
         <View
           style={styles.centerBoardArea}
           onLayout={(e) => {
@@ -200,12 +207,73 @@ export default function GameScreen() {
               onNext={tutorial.dismiss}
               onSkip={tutorial.skipAll}
             />
-          </View>
+                    </View>
         </View>
       )}
 
+      {/* Modal de Pausa */}
+      <Modal
+        visible={pauseOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPauseOpen(false)}
+      >
+        <View style={styles.pauseOverlay}>
+          <View style={styles.pauseCard}>
+            <Text style={styles.pauseTitle}>PARTIDA EN PAUSA</Text>
+            <Text style={styles.pauseSub}>
+              {state.roomName ?? 'OPERACIÓN ACTIVA'} · TURNO {state.turn}
+            </Text>
+
+            <View style={styles.pauseButtons}>
+              <Pressable
+                style={[styles.pauseActionBtn, styles.pauseResumeBtn]}
+                onPress={() => setPauseOpen(false)}
+              >
+                <Play size={18} color="#ffffff" fill="#ffffff" />
+                <Text style={styles.pauseResumeText}>REANUDAR PARTIDA</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.pauseActionBtn}
+                onPress={() => {
+                  setPauseOpen(false);
+                  setGuideOpen(true);
+                }}
+              >
+                <BookOpen size={18} color="#ffcc00" />
+                <Text style={styles.pauseActionText}>CÓMO JUGAR // MANUAL TÁCTICO</Text>
+              </Pressable>
+
+              {isDemo && (
+                <Pressable
+                  style={styles.pauseActionBtn}
+                  onPress={() => {
+                    setPauseOpen(false);
+                    resetDemo();
+                  }}
+                >
+                  <RotateCcw size={18} color="#00e699" />
+                  <Text style={styles.pauseActionText}>REINICIAR SECTOR</Text>
+                </Pressable>
+              )}
+
+              <Pressable
+                style={[styles.pauseActionBtn, styles.pauseExitBtn]}
+                onPress={exitToMainMenu}
+              >
+                <Home size={18} color="#ff4d6a" />
+                <Text style={[styles.pauseActionText, { color: '#ff6b82' }]}>
+                  SALIR AL INICIO
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de victoria / derrota */}
-      <ResultModal result={ended} onBack={goBack} onRetry={isDemo ? resetDemo : undefined} />
+      <ResultModal result={ended} onBack={exitToMainMenu} onRetry={isDemo ? resetDemo : undefined} />
 
       {/* Animación de transición de cuarto */}
       <RoomTransitionOverlay
@@ -214,12 +282,13 @@ export default function GameScreen() {
         onAnimationComplete={clearTransition}
       />
 
-      {/* Guía completa en Modal */}
+      {/* Guía completa ("Cómo jugar" actualizado) en Modal */}
       <Modal visible={guideOpen} animationType="fade" onRequestClose={() => setGuideOpen(false)}>
         <SafeAreaView style={styles.guideModal}>
+          <StatusBar hidden />
           <View style={styles.guideHeader}>
             <Text style={styles.guideTitle}>MANUAL TÁCTICO // CÓMO JUGAR</Text>
-            <Pressable onPress={() => setGuideOpen(false)} style={styles.iconBtn}>
+            <Pressable onPress={() => setGuideOpen(false)} style={styles.closeIconBtn}>
               <X size={20} color="#ffcc00" />
             </Pressable>
           </View>
@@ -267,7 +336,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   leftSidebar: {
-    width: 210,
+    width: 212,
     height: '100%',
     justifyContent: 'space-between',
     gap: 8,
@@ -275,31 +344,34 @@ const styles = StyleSheet.create({
   navRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
+    gap: 8,
   },
-  iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 7,
-    backgroundColor: '#151d27',
-    borderWidth: 1.5,
-    borderColor: '#3a4a5e',
+  pauseBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 7,
+    backgroundColor: '#18212d',
+    borderWidth: 1.5,
+    borderColor: '#ffcc00',
+  },
+  pauseBtnText: {
+    color: '#ffcc00',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   sectorBadge: {
     flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 2,
   },
   sectorLabel: {
-    color: '#ffcc00',
-    fontSize: 11,
-    lineHeight: 14,
+    color: '#e8f0f8',
+    fontSize: 10.5,
+    lineHeight: 13,
     fontWeight: '900',
-    letterSpacing: 0.8,
-    textAlign: 'center',
+    letterSpacing: 0.6,
   },
   agentBanner: {
     flexDirection: 'row',
@@ -392,9 +464,82 @@ const styles = StyleSheet.create({
     width: 420,
     maxWidth: '92%',
   },
+  pauseOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(5, 8, 12, 0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  pauseCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#121822',
+    borderWidth: 2.5,
+    borderColor: '#ffcc00',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.9,
+    shadowRadius: 16,
+    elevation: 14,
+  },
+  pauseTitle: {
+    color: '#ffcc00',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+  },
+  pauseSub: {
+    color: '#96a8bc',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    marginBottom: 8,
+  },
+  pauseButtons: {
+    width: '100%',
+    gap: 9,
+  },
+  pauseActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#192230',
+    borderWidth: 1.5,
+    borderColor: '#36465a',
+    borderRadius: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+  },
+  pauseResumeBtn: {
+    backgroundColor: '#d83800',
+    borderColor: '#ffcc00',
+    borderWidth: 2,
+  },
+  pauseResumeText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  pauseActionText: {
+    color: '#e8f0f8',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  pauseExitBtn: {
+    borderColor: 'rgba(255, 77, 106, 0.45)',
+    backgroundColor: 'rgba(45, 16, 24, 0.65)',
+  },
   guideModal: {
     flex: 1,
-    backgroundColor: '#090c10',
+    backgroundColor: '#090c11',
     paddingHorizontal: 16,
   },
   guideHeader: {
@@ -410,6 +555,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 1.5,
+  },
+  closeIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 7,
+    backgroundColor: '#151d27',
+    borderWidth: 1.5,
+    borderColor: '#3a4a5e',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   blackEntryCurtain: {
     position: 'absolute',

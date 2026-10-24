@@ -1,4 +1,4 @@
-// Sprite animado 32-bit para los Guardias de Seguridad (estilo Metal Slug).
+// Sprite animado 16-bit para los Guardias de Seguridad.
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import type { Direction } from '../../lib/types';
@@ -32,14 +32,12 @@ export function GuardSprite({
     }
 
     if (isMoving) {
+      setFrameIndex(1);
       timerRef.current = setInterval(() => {
         setFrameIndex((prev) => (prev + 1) % 4);
-      }, 110);
+      }, 65);
     } else {
       setFrameIndex(0);
-      timerRef.current = setInterval(() => {
-        setFrameIndex((prev) => (prev + 1) % 4);
-      }, 600);
     }
 
     return () => {
@@ -55,8 +53,8 @@ export function GuardSprite({
       <Image
         source={currentFrame}
         style={{
-          width: size * 1.04,
-          height: size * 1.04,
+          width: size * 0.94,
+          height: size * 0.94,
           resizeMode: 'contain',
         }}
       />

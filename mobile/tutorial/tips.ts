@@ -1,12 +1,13 @@
-// Catálogo de cartas del tutorial. Cada carta explica UNA mecánica y aparece la primera vez
-// que el jugador se la encuentra (como en la mayoría de los juegos). También se usan en la
-// pantalla "Cómo jugar".
+// Catálogo actualizado de cartas del tutorial y del Manual Táctico ("Cómo jugar").
+// Sincronizado con el mapa 12x12 estilo 16-bit, puertas moradas entre cuartos,
+// pasos seguros en verde (#00E699), conos naranjas/rojos y módulos de 16 bits.
 import {
   Battery,
   CameraOff,
   CloudFog,
   Crosshair,
   DoorClosed,
+  DoorOpen,
   Eye,
   Flag,
   Gamepad2,
@@ -35,7 +36,7 @@ export type TipGroup = 'intro' | 'danger' | 'map' | 'advanced';
 /** Fila de la leyenda: ícono o muestra de color + texto */
 export interface TipLegend {
   icon?: LucideIcon;
-  swatch?: string; // color de una casilla de ejemplo
+  swatch?: string;
   color: string;
   text: string;
 }
@@ -55,13 +56,9 @@ export interface Tip {
   title: string;
   body: string;
   legend?: TipLegend[];
-  /** ¿Debe aparecer ahora? */
   trigger: (ctx: TipContext) => boolean;
-  /** Casillas que parpadean en el tablero mientras se muestra la carta */
   highlight?: (ctx: TipContext) => Point[];
 }
-
-// ---------- Ayudantes ----------
 
 const distance = (a: { x: number; y: number }, b: { x: number; y: number }) =>
   Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
@@ -74,7 +71,6 @@ const findEntities = (state: SessionState, type: GameEntity['type']) =>
 
 const entityPoints = (list: GameEntity[]): Point[] => list.map((e) => [e.x, e.y]);
 
-/** Entidad cerrada del tipo dado justo al lado del jugador */
 const adjacentClosed = ({ state, me }: TipContext, type: GameEntity['type']) =>
   me ? findEntities(state, type).find((e) => !e.open && distance(e, me) === 1) : undefined;
 
@@ -103,18 +99,21 @@ const walkableNeighbors = ({ state, me }: TipContext): Point[] => {
 
 const always = () => true;
 
-// ---------- Cartas ----------
-
 export const TIPS: Tip[] = [
-  // ===== Introducción (se muestran en orden al empezar) =====
+  // ===== Introducción =====
   {
     id: 'objective',
     group: 'intro',
     icon: Flag,
-    color: colors.success,
-    title: 'Tu objetivo',
-    body: 'Infíltrate sin ser visto y llega a la casilla de extracción para completar la misión.',
-    legend: [{ icon: Flag, color: colors.success, text: 'Extracción: la salida del nivel' }],
+    color: '#00E699',
+    title: 'Objetivo de Infiltración',
+    body:
+      'Cruza los sectores del complejo 12×12 sin que la alerta llegue al 100 %. ' +
+      'Atraviesa las puertas moradas en los bordes para cambiar de cuarto hasta alcanzar la Plataforma de Extracción.',
+    legend: [
+      { swatch: '#BD00FF', color: '#BD00FF', text: 'Borde morado: puerta hacia el siguiente cuarto' },
+      { icon: Flag, color: '#00E699', text: 'Plataforma verde: punto de extracción final' },
+    ],
     trigger: always,
     highlight: ({ state }) => tilesWithCode(state, Tile.EXTRACTION),
   },
@@ -122,10 +121,15 @@ export const TIPS: Tip[] = [
     id: 'movement',
     group: 'intro',
     icon: Gamepad2,
-    color: colors.stealth,
-    title: 'Moverse',
-    body: 'Usa la cruceta o toca una de las casillas resaltadas junto a tu personaje para avanzar una casilla.',
-    legend: [{ swatch: colors.stealth, color: colors.stealth, text: 'El círculo cian eres tú' }],
+    color: '#00E699',
+    title: 'Movimiento Táctico',
+    body:
+      'Usa el Control Táctico (D-Pad) a la derecha o toca directamente cualquiera de las casillas ' +
+      'marcadas en verde junto a tu agente para desplazarte una celda.',
+    legend: [
+      { swatch: '#00E699', color: '#00E699', text: 'Marco verde: paso disponible seguro' },
+      { swatch: '#FF2E4C', color: '#FF2E4C', text: 'Marco rojo: paso vigilado por un enemigo' },
+    ],
     trigger: always,
     highlight: walkableNeighbors,
   },
@@ -133,25 +137,25 @@ export const TIPS: Tip[] = [
     id: 'turns',
     group: 'intro',
     icon: Hourglass,
-    color: colors.stealth,
-    title: 'Juego por turnos',
+    color: '#FFB800',
+    title: 'Infiltración por Turnos',
     body:
-      'El mundo solo avanza cuando te mueves o pulsas Esperar: los guardias dan un paso y las cámaras giran. ' +
-      'Mirar el reloj o usar habilidades NO gasta turno, así que piensa con calma.',
+      'Los guardias patrullan una casilla y las cámaras rotan únicamente cuando tú das un paso o pulsas Esperar. ' +
+      'Analiza las rutas de los guardias con calma; usar habilidades del reloj NO consume turno.',
     trigger: always,
   },
   {
     id: 'hud',
     group: 'intro',
     icon: ShieldAlert,
-    color: colors.stealth,
-    title: 'Batería y alerta',
-    body: 'Arriba ves tus dos recursos más importantes. Vigílalos siempre.',
+    color: '#00E699',
+    title: 'Energía y Nivel de Alerta',
+    body: 'En el panel izquierdo monitoreas en tiempo real tu batería y el estado de alerta del complejo.',
     legend: [
-      { icon: Battery, color: colors.stealth, text: 'Batería: la gastan las habilidades del reloj' },
-      { icon: ShieldAlert, color: colors.stealth, text: 'Sigilo (0-49 %): todo normal' },
-      { icon: ShieldAlert, color: colors.suspicion, text: 'Sospecha (50-99 %): los enemigos ven más lejos' },
-      { icon: ShieldAlert, color: colors.danger, text: 'Lockdown (100 %): pierdes la misión' },
+      { icon: Battery, color: '#00E699', text: 'Energía: necesaria para activar habilidades del reloj' },
+      { icon: ShieldAlert, color: '#00E699', text: 'Sigilo (0-49 %): patrullas en estado normal' },
+      { icon: ShieldAlert, color: '#FF8800', text: 'Sospecha (50-99 %): visión enemiga ampliada +1 casilla' },
+      { icon: ShieldAlert, color: '#FF2E4C', text: 'Lockdown (100 %): complejo bloqueado, misión fallida' },
     ],
     trigger: always,
   },
@@ -159,30 +163,30 @@ export const TIPS: Tip[] = [
     id: 'watch',
     group: 'intro',
     icon: Watch,
-    color: colors.stealth,
-    title: 'Tu reloj es el Hacker Deck',
-    body: 'Las habilidades se usan desde el reloj y gastan batería. Lo que hagas en el reloj cambia el mapa al instante.',
+    color: '#00D8FF',
+    title: 'Smartwatch: Hacker Deck',
+    body: 'Tu reloj inteligente actúa como dispositivo de ciber-sabotaje conectado en tiempo real al mapa.',
     legend: [
-      { icon: Radar, color: colors.stealth, text: 'Escáner (15 %): revela trampas cercanas' },
-      { icon: CameraOff, color: colors.stealth, text: 'Sabotaje (25 %): apaga la cámara más cercana' },
-      { icon: Ghost, color: colors.stealth, text: 'Camuflaje (35 %): no te detectan por 2 turnos' },
+      { icon: Radar, color: '#00D8FF', text: 'Escáner (15 %): detecta minas láser ocultas cercanas' },
+      { icon: CameraOff, color: '#00D8FF', text: 'Sabotaje (25 %): desactiva la cámara más cercana' },
+      { icon: Ghost, color: '#00D8FF', text: 'Camuflaje (35 %): te vuelve indetectable por 2 turnos' },
     ],
     trigger: always,
   },
 
-  // ===== Peligros (aparecen al encontrarlos) =====
+  // ===== Peligros =====
   {
     id: 'vision',
     group: 'danger',
     icon: Eye,
-    color: colors.danger,
-    title: 'Conos de visión',
+    color: '#FF2E4C',
+    title: 'Conos de Visión Enemiga',
     body:
-      'Las casillas coloreadas son lo que ven los enemigos. Si terminas tu turno dentro, sube la alerta. ' +
-      'Rodéalas, espera a que el guardia se mueva o usa Sabotaje o Camuflaje.',
+      'Los guardias y cámaras proyectan conos de vigilancia sobre los pasillos. ' +
+      'Si terminas tu turno sobre una casilla vigilada, la alerta subirá drásticamente.',
     legend: [
-      { swatch: colors.danger, color: colors.danger, text: 'Visión de cámara: +35 % de alerta' },
-      { swatch: colors.suspicion, color: colors.suspicion, text: 'Visión de guardia: +50 % de alerta' },
+      { swatch: '#FF8800', color: '#FF8800', text: 'Naranja: visión de guardia (+50 % de alerta)' },
+      { swatch: '#FF2E4C', color: '#FF2E4C', text: 'Rojo: visión de cámara (+35 % de alerta)' },
     ],
     trigger: ({ state, me }) => !!me && activeVisionTiles(state).some(([x, y]) => distance({ x, y }, me) <= 2),
     highlight: ({ state }) => activeVisionTiles(state),
@@ -191,31 +195,31 @@ export const TIPS: Tip[] = [
     id: 'detected',
     group: 'danger',
     icon: ScanEye,
-    color: colors.danger,
-    title: 'Te detectaron',
-    body: 'Terminaste un turno a la vista de un enemigo y la alerta subió. Sal del cono de visión cuanto antes.',
+    color: '#FF2E4C',
+    title: 'Intruso Detectado',
+    body: 'Terminaste un turno dentro de un cono de visión y la alerta subió. Sal de la línea de visión de inmediato.',
     trigger: ({ state, prev }) => !!prev && state.alert > prev.alert,
   },
   {
     id: 'suspicion',
     group: 'danger',
     icon: Siren,
-    color: colors.suspicion,
+    color: '#FF8800',
     title: 'Estado de Sospecha',
     body:
-      'La alerta pasó del 50 %. Los conos de visión crecen 1 casilla y tu reloj vibra. ' +
-      'Si llega a 100 % se activa el Lockdown y pierdes la misión.',
+      'La alerta superó el 50 %. Los conos de visión crecen 1 casilla adicional y el reloj emite vibración de peligro. ' +
+      'Al llegar a 100 % se activa el Lockdown.',
     trigger: ({ state }) => state.alert >= 50 && state.alert < 100,
   },
   {
     id: 'trap',
     group: 'danger',
     icon: TriangleAlert,
-    color: colors.suspicion,
-    title: 'Trampas',
+    color: '#FF8800',
+    title: 'Minas Láser de Proximidad',
     body:
-      'Son invisibles hasta que usas el Escáner del reloj. Pisar una suma +25 % de alerta, ' +
-      'y el Camuflaje no te protege de ellas.',
+      'Permanecen ocultas hasta usar el Escáner del reloj. Pisar una mina suma +25 % de alerta ' +
+      'incluso si llevas el Camuflaje óptico activo.',
     trigger: ({ state }) => state.revealedTraps.length > 0,
     highlight: ({ state }) => state.revealedTraps,
   },
@@ -225,11 +229,15 @@ export const TIPS: Tip[] = [
     id: 'door',
     group: 'map',
     icon: DoorClosed,
-    color: colors.danger,
-    title: 'Puerta bloqueada',
+    color: '#FF2E4C',
+    title: 'Compuerta Blindada y Puertas de Cuarto',
     body:
-      'Abre tu reloj y pulsa Hackear (20 % de batería). Repite la secuencia de nodos de colores: ' +
-      'si aciertas, la puerta se abre; si fallas, la alerta sube +35 %. También puedes buscar otro camino.',
+      'Las compuertas internas bloqueadas se abren hackeando desde el reloj (20 % de energía) o usando terminales. ' +
+      'Las caras pintadas de morado en el borde del mapa te llevan al siguiente cuarto del complejo.',
+    legend: [
+      { icon: DoorClosed, color: '#FF2E4C', text: 'Compuerta blindada: requiere hackeo para abrir el paso' },
+      { icon: DoorOpen, color: '#BD00FF', text: 'Borde morado: acceso directo a otro cuarto' },
+    ],
     trigger: (ctx) => !!adjacentClosed(ctx, 'door'),
     highlight: (ctx) => entityPoints(findEntities(ctx.state, 'door').filter((d) => !d.open)),
   },
@@ -237,9 +245,9 @@ export const TIPS: Tip[] = [
     id: 'terminal',
     group: 'map',
     icon: Monitor,
-    color: colors.stealth,
-    title: 'Terminal de datos',
-    body: 'Hackéala desde tu reloj para conseguir créditos e información extra. Es opcional, pero ayuda a mejorar tu equipo.',
+    color: '#00D8FF',
+    title: 'Terminal de Datos 16-Bit',
+    body: 'Colócate junto a la consola y hackéala desde el reloj para desbloquear accesos y extraer datos clasificados.',
     trigger: (ctx) => !!adjacentClosed(ctx, 'terminal'),
     highlight: ({ state }) => entityPoints(findEntities(state, 'terminal')),
   },
@@ -247,21 +255,21 @@ export const TIPS: Tip[] = [
     id: 'energy',
     group: 'map',
     icon: Zap,
-    color: colors.stealth,
-    title: 'Nodo de energía',
-    body: 'Pasa por encima para recargar +30 % de batería. Desaparece al tomarlo, así que úsalo cuando lo necesites.',
+    color: '#00E699',
+    title: 'Módulo de Energía',
+    body: 'Camina sobre la batería con el símbolo de rayo para recargar +30 % de energía en tu equipamiento.',
     trigger: (ctx) => near(ctx, 'energy', 2),
     highlight: ({ state }) => entityPoints(findEntities(state, 'energy')),
   },
 
-  // ===== Mecánicas de niveles avanzados =====
+  // ===== Mecánicas avanzadas =====
   {
     id: 'drone',
     group: 'advanced',
     icon: Plane,
-    color: colors.danger,
-    title: 'Drones',
-    body: 'Patrullan siguiendo una ruta circular. El Pulso PEM de tu reloj puede paralizarlos durante 4 turnos.',
+    color: '#FF2E4C',
+    title: 'Drones de Patrulla',
+    body: 'Recorren circuitos rápidos. El Pulso PEM del reloj puede deshabilitarlos durante 4 turnos.',
     trigger: ({ state }) => findEntities(state, 'drone').length > 0,
     highlight: ({ state }) => entityPoints(findEntities(state, 'drone')),
   },
@@ -269,9 +277,9 @@ export const TIPS: Tip[] = [
     id: 'turret',
     group: 'advanced',
     icon: Crosshair,
-    color: colors.danger,
-    title: 'Torretas',
-    body: 'Vigilan en todas las direcciones (360°). Mantente fuera de su alcance.',
+    color: '#FF2E4C',
+    title: 'Torretas Automáticas',
+    body: 'Vigilan en 360° a su alrededor. Evita su perímetro o desactívalas mediante sabotaje.',
     trigger: ({ state }) => findEntities(state, 'turret').length > 0,
     highlight: ({ state }) => entityPoints(findEntities(state, 'turret')),
   },
@@ -279,9 +287,9 @@ export const TIPS: Tip[] = [
     id: 'emp_zone',
     group: 'advanced',
     icon: Radiation,
-    color: colors.suspicion,
-    title: 'Zona PEM',
-    body: 'Si la pisas, tu reloj queda bloqueado durante 2 turnos y no podrás usar habilidades.',
+    color: '#FF8800',
+    title: 'Campo de Interferencia PEM',
+    body: 'Pisar esta zona bloquea temporalmente la comunicación con tu reloj durante 2 turnos.',
     trigger: ({ state }) => findEntities(state, 'emp_zone').length > 0,
     highlight: ({ state }) => entityPoints(findEntities(state, 'emp_zone')),
   },
@@ -290,8 +298,8 @@ export const TIPS: Tip[] = [
     group: 'advanced',
     icon: CloudFog,
     color: colors.textMuted,
-    title: 'Niebla de guerra',
-    body: 'Solo ves una casilla a tu alrededor. La Visión Térmica de tu reloj elimina la niebla durante 3 turnos.',
+    title: 'Sector sin Iluminación',
+    body: 'Visibilidad reducida a 1 casilla. Activa la Visión Térmica del reloj para despejar el mapa por 3 turnos.',
     trigger: ({ state }) => state.fog != null,
   },
   {
@@ -299,19 +307,17 @@ export const TIPS: Tip[] = [
     group: 'advanced',
     icon: Gem,
     color: '#FFD700',
-    title: 'Tesoro oculto',
-    body: 'Objetivo opcional. Usa el Radar de tu reloj: vibra más rápido cuanto más cerca estés.',
+    title: 'Objetivo Secundario Oculto',
+    body: 'Usa el Radar háptico del reloj: la frecuencia de vibración aumenta al acercarte al objetivo.',
     trigger: ({ state }) => findEntities(state, 'treasure').length > 0,
   },
   {
     id: 'dual_door',
     group: 'advanced',
     icon: Lock,
-    color: colors.danger,
-    title: 'Cerrojo dual',
-    body:
-      'Esta puerta necesita dos hackeos. En co-op, cada jugador se coloca en una terminal y ambos hackean ' +
-      'a la vez, con 5 segundos de diferencia como máximo.',
+    color: '#FF2E4C',
+    title: 'Bóveda de Cerrojo Dual',
+    body: 'En modo cooperativo, ambos operadores deben colocarse en sus terminales y sincronizar el hackeo.',
     trigger: ({ state }) => findEntities(state, 'dual_door').length > 0,
     highlight: ({ state }) => entityPoints(findEntities(state, 'dual_door')),
   },
@@ -319,11 +325,9 @@ export const TIPS: Tip[] = [
     id: 'coop',
     group: 'advanced',
     icon: Users,
-    color: colors.success,
-    title: 'Modo cooperativo',
-    body:
-      'El mundo avanza cuando los dos jugadores actúan. La alerta es compartida y ambos deben llegar a la extracción. ' +
-      'Usa los pings del reloj para coordinarte sin hablar.',
+    color: '#00E699',
+    title: 'Operación Cooperativa',
+    body: 'El turno avanza cuando ambos agentes deciden su movimiento. La barra de alerta es compartida.',
     trigger: ({ state }) => state.players.length > 1,
   },
 ];
@@ -333,8 +337,8 @@ export const TIPS_BY_ID: Record<string, Tip> = Object.fromEntries(TIPS.map((t) =
 export const INTRO_TIPS = TIPS.filter((t) => t.group === 'intro');
 
 export const GROUP_LABEL: Record<TipGroup, string> = {
-  intro: 'Lo básico',
-  danger: 'Peligros',
-  map: 'Elementos del mapa',
-  advanced: 'Niveles avanzados',
+  intro: 'Fundamentos Tácticos',
+  danger: 'Amenazas y Vigilancia',
+  map: 'Módulos e Interactuables 16-Bit',
+  advanced: 'Equipamiento Avanzado',
 };
