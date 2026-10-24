@@ -1,6 +1,10 @@
-// Tablero 2D 12x12 con estética 32-bit pixel art estilo Metal Slug:
-// Dibuja casillas texturizadas (piso metálico, muros blindados, escotilla de extracción),
-// conos de visión, trampas, cámaras, guardias animados y jugadores sin círculos fosforescentes debajo.
+// Tablero 2D 12x12 con estética 15-bit limpia, intuitiva y de alto contraste:
+// - Los muros contiguos se fusionan visualmente en bloques sólidos oscuros con bisel 15-bit
+//   únicamente hacia los pasillos, eliminando la saturación visual.
+// - Los pasillos caminables usan losas tácticas claras (#263445 / #29384a) para que
+//   personajes, guardias, cámaras, objetos y conos de visión destaquen al instante.
+// - Las casillas adyacentes caminables se indican en verde táctico (#00E699), diferenciadas
+//   claramente de los conos de visión de guardias (naranja) y cámaras (rojo).
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { colors, withAlpha } from '../../theme/colors';
@@ -13,7 +17,9 @@ import { EntityIcon } from './EntityIcon';
 import { TileHighlight } from './TileHighlight';
 
 const PORTAL_PURPLE = '#BD00FF';
-const ARCADE_GOLD = '#FFB800';
+const STEP_SAFE_GREEN = '#00E699';
+const GUARD_VISION_ORANGE = '#FF8800';
+const CAMERA_VISION_RED = '#FF2E4C';
 
 interface Props {
   state: SessionState;
@@ -27,7 +33,7 @@ interface Props {
   highlightColor?: string;
 }
 
-/** Pieza animada para Guardias y Drones con sprite 32-bit y detección de movimiento */
+/** Pieza animada para Guardias y Drones con sprite 15/32-bit y marcador táctico de amenaza */
 function AnimatedEnemyPiece({
   entity,
   tileSize,
@@ -84,6 +90,10 @@ function AnimatedEnemyPiece({
         },
       ]}
     >
+      {/* Marco táctico sutil de presencia enemiga para identificar al guardia de inmediato */}
+      {!entity.disabledTurns && (
+        <View style={styles.enemyTileMarker} />
+      )}
       {entity.type === 'guard' ? (
         <GuardSprite
           direction={facing}
@@ -98,7 +108,7 @@ function AnimatedEnemyPiece({
   );
 }
 
-/** Pieza animada del jugador con sprite 32-bit puro (sin círculo fosforescente debajo) */
+/** Pieza animada del jugador con sprite puro (sin círculo fosforescente debajo) */
 function AnimatedPlayerPiece({
   x,
   y,
@@ -162,7 +172,7 @@ function AnimatedPlayerPiece({
         characterId={characterId}
         direction={facing}
         isMoving={isMoving}
-        size={tileSize * 0.98}
+        size={tileSize * 0.96}
       />
     </Animated.View>
   );
@@ -190,7 +200,7 @@ export function Board({
 }: Props) {
   const boardW = state.width * tileSize;
   const boardH = state.height * tileSize;
-  const iconSize = Math.round(tileSize * 0.6);
+  const iconSize = Math.round(tileSize * 0.78);
 
   const at = (x: number, y: number) => ({
     left: x * tileSize,
@@ -199,28 +209,53 @@ export function Board({
     height: tileSize,
   });
 
+  // Mapa rápido de casillas vigiladas para distinguir pasos seguros de pasos en visión enemiga
+  const watchedSet = new Set<string>();
+  for (const e of state.entities) {
+    if (e.visionTiles && !e.disabledTurns) {
+      for (const [vx, vy] of e.visionTiles) {
+        watchedSet.add(`${vx},${vy}`);
+      }
+    }
+  }
+
+  const isWallAt = (tx: number, ty: number) => {
+    if (tx < 0 || ty < 0 || tx >= state.width || ty >= state.height) return true;
+    return state.tiles[ty]?.[tx] === Tile.WALL;
+  };
+
   return (
     <View style={[styles.board, { width: boardW, height: boardH }]}>
-      {/* 1. Casillas del mapa 12x12 con texturas 32-bit pixel art */}
+      {/* 1. Casillas del mapa 12x12 con estética 15-bit conectada y limpia */}
       {state.tiles.map((row, y) =>
         row.map((code, x) => {
           const dir = me ? directionTo(me, x, y) : null;
-          const walkable = code !== Tile.WALL && code !== Tile.ABYSS;
-          const isPerimeter = x === 0 || x === state.width - 1 || y === 0 || y === state.height - 1;
+          const isWall = code === Tile.WALL;
+          const isAbyss = code === Tile.ABYSS;
+          const isExtraction = code === Tile.EXTRACTION;
+          const walkable = !isWall && !isAbyss;
+          const isCheckerEven = (x + y) % 2 === 0;
+          const isWatched = watchedSet.has(`${x},${y}`);
 
           // ¿Esta casilla es una compuerta de cambio de cuarto?
           const portalDoor = state.entities.find(
             (e) => (e.type === 'door' || e.type === 'dual_door') && e.targetRoom && e.x === x && e.y === y,
           );
 
-          const tileTex =
-            code === Tile.WALL
-              ? TILE_ASSETS.wall
-              : code === Tile.EXTRACTION
-                ? TILE_ASSETS.extraction
-                : code === Tile.ABYSS
-                  ? null
-                  : TILE_ASSETS.floor;
+          // Biseles 15-bit para muros: solo se remarcan los bordes que colindan con suelo caminable,
+          // fusionando los muros adyacentes en bloques continuos muy fáciles de leer.
+          const wallEdges = isWall
+            ? {
+                borderTopWidth: !isWallAt(x, y - 1) ? 2.5 : 0,
+                borderTopColor: '#4c5f78',
+                borderBottomWidth: !isWallAt(x, y + 1) ? 3.5 : 0,
+                borderBottomColor: '#05070a',
+                borderLeftWidth: !isWallAt(x - 1, y) ? 2 : 0,
+                borderLeftColor: '#3b4b60',
+                borderRightWidth: !isWallAt(x + 1, y) ? 2 : 0,
+                borderRightColor: '#070a0f',
+              }
+            : null;
 
           return (
             <Pressable
@@ -230,21 +265,41 @@ export function Board({
               style={[
                 styles.cell,
                 at(x, y),
-                isPerimeter ? perimeterStyle(x, y, state.width, state.height) : null,
+                walkable && (isCheckerEven ? styles.floorEven : styles.floorOdd),
+                isWall && styles.wallCell,
+                isAbyss && styles.abyssCell,
+                wallEdges,
                 portalDoor ? portalFaceStyle(x, y, state.width, state.height) : null,
               ]}
             >
-              {/* Textura 32-bit de la celda */}
-              {tileTex && (
+              {/* Escotilla de extracción en el objetivo final */}
+              {isExtraction && (
                 <Image
-                  source={tileTex}
+                  source={TILE_ASSETS.extraction}
                   style={styles.tileTexture}
                 />
               )}
 
-              {/* Resaltado sutil de casilla adyacente caminable */}
+              {/* Relieve interior 15-bit para bloques de pared */}
+              {isWall && (
+                <View style={styles.wallInnerCap} />
+              )}
+
+              {/* Indicador intuitivo de casilla vecina a la que puedes caminar */}
               {dir && walkable && (
-                <View style={styles.walkableHighlight} />
+                <View
+                  style={[
+                    styles.walkableHighlight,
+                    isWatched && styles.walkableDangerHighlight,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.walkableDot,
+                      isWatched && styles.walkableDangerDot,
+                    ]}
+                  />
+                </View>
               )}
 
               {/* Tinte interior para celda con compuerta morada */}
@@ -266,11 +321,12 @@ export function Board({
         }),
       )}
 
-      {/* 2. Conos de visión proyectados */}
+      {/* 2. Conos de visión proyectados (Naranja para guardias, Rojo para cámaras) */}
       {state.entities
         .filter((e) => e.visionTiles && !e.disabledTurns)
-        .flatMap((e) =>
-          e.visionTiles!.map(([vx, vy]) => (
+        .flatMap((e) => {
+          const coneColor = e.type === 'camera' ? CAMERA_VISION_RED : GUARD_VISION_ORANGE;
+          return e.visionTiles!.map(([vx, vy]) => (
             <View
               key={`v-${e.id}-${vx}-${vy}`}
               pointerEvents="none"
@@ -278,20 +334,14 @@ export function Board({
                 styles.overlay,
                 at(vx, vy),
                 {
-                  backgroundColor: withAlpha(
-                    e.type === 'camera' ? colors.danger : colors.suspicion,
-                    0.32,
-                  ),
-                  borderWidth: 1,
-                  borderColor: withAlpha(
-                    e.type === 'camera' ? colors.danger : colors.suspicion,
-                    0.6,
-                  ),
+                  backgroundColor: withAlpha(coneColor, 0.28),
+                  borderWidth: 1.5,
+                  borderColor: withAlpha(coneColor, 0.72),
                 },
               ]}
             />
-          )),
-        )}
+          ));
+        })}
 
       {/* 3. Trampas reveladas */}
       {state.revealedTraps.map(([tx, ty]) => (
@@ -309,7 +359,7 @@ export function Board({
           </View>
         ))}
 
-      {/* 5. Entidades móviles (Guardias 32-bit con animación de caminata y deslizamiento) */}
+      {/* 5. Entidades móviles (Guardias con animación de caminata y deslizamiento) */}
       {state.entities
         .filter((e) => e.type === 'guard' || e.type === 'drone')
         .map((e) => (
@@ -321,7 +371,7 @@ export function Board({
           />
         ))}
 
-      {/* 6. Jugadores con sprite 32-bit puro (sin círculo debajo) */}
+      {/* 6. Jugadores con sprite puro (sin círculo debajo) */}
       {state.players.map((p) => {
         const charId = p.slot === 1 ? characterId : 'vicente';
         return (
@@ -350,73 +400,85 @@ export function Board({
   );
 }
 
-/** Remarca con mayor grosor metálico los bordes perimetrales del tablero */
-function perimeterStyle(x: number, y: number, w: number, h: number) {
-  const borderCol = '#4a5664';
-  return {
-    ...(x === 0 ? { borderLeftWidth: 2.5, borderLeftColor: borderCol } : {}),
-    ...(x === w - 1 ? { borderRightWidth: 2.5, borderRightColor: borderCol } : {}),
-    ...(y === 0 ? { borderTopWidth: 2.5, borderTopColor: borderCol } : {}),
-    ...(y === h - 1 ? { borderBottomWidth: 2.5, borderBottomColor: borderCol } : {}),
-  };
-}
-
 /** Pinta de morado la cara de la celda donde está la compuerta a otro cuarto */
 function portalFaceStyle(x: number, y: number, w: number, h: number) {
   if (x === w - 1) {
-    return { borderRightWidth: 4.5, borderRightColor: PORTAL_PURPLE };
+    return { borderRightWidth: 5, borderRightColor: PORTAL_PURPLE };
   }
   if (x === 0) {
-    return { borderLeftWidth: 4.5, borderLeftColor: PORTAL_PURPLE };
+    return { borderLeftWidth: 5, borderLeftColor: PORTAL_PURPLE };
   }
   if (y === 0) {
-    return { borderTopWidth: 4.5, borderTopColor: PORTAL_PURPLE };
+    return { borderTopWidth: 5, borderTopColor: PORTAL_PURPLE };
   }
   if (y === h - 1) {
-    return { borderBottomWidth: 4.5, borderBottomColor: PORTAL_PURPLE };
+    return { borderBottomWidth: 5, borderBottomColor: PORTAL_PURPLE };
   }
-  return { borderRightWidth: 4.5, borderRightColor: PORTAL_PURPLE };
+  return { borderRightWidth: 5, borderRightColor: PORTAL_PURPLE };
 }
 
 /** Posición de la barra luminosa morada en la cara de la compuerta */
 function portalThresholdPlacement(x: number, y: number, w: number, h: number) {
   if (x === w - 1) {
-    return { right: 0, top: 0, bottom: 0, width: 4.5 };
+    return { right: 0, top: 0, bottom: 0, width: 5 };
   }
   if (x === 0) {
-    return { left: 0, top: 0, bottom: 0, width: 4.5 };
+    return { left: 0, top: 0, bottom: 0, width: 5 };
   }
   if (y === 0) {
-    return { top: 0, left: 0, right: 0, height: 4.5 };
+    return { top: 0, left: 0, right: 0, height: 5 };
   }
   if (y === h - 1) {
-    return { bottom: 0, left: 0, right: 0, height: 4.5 };
+    return { bottom: 0, left: 0, right: 0, height: 5 };
   }
-  return { right: 0, top: 0, bottom: 0, width: 4.5 };
+  return { right: 0, top: 0, bottom: 0, width: 5 };
 }
 
 const styles = StyleSheet.create({
   board: {
     position: 'relative',
-    backgroundColor: '#0c0f14',
+    backgroundColor: '#0c1016',
     borderWidth: 3,
-    borderColor: '#526070',
+    borderColor: '#485a70',
     borderRadius: 6,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOpacity: 0.9,
-    shadowRadius: 16,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 10,
   },
   cell: {
     position: 'absolute',
-    borderWidth: 0.5,
-    borderColor: 'rgba(0, 0, 0, 0.55)',
-    backgroundColor: '#12161c',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  floorEven: {
+    backgroundColor: '#273546',
+    borderWidth: 0.5,
+    borderColor: 'rgba(14, 20, 28, 0.45)',
+  },
+  floorOdd: {
+    backgroundColor: '#233040',
+    borderWidth: 0.5,
+    borderColor: 'rgba(14, 20, 28, 0.45)',
+  },
+  wallCell: {
+    backgroundColor: '#0d1219',
+  },
+  wallInnerCap: {
+    width: '76%',
+    height: '76%',
+    backgroundColor: '#141c27',
+    borderRadius: 2,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderTopColor: 'rgba(95, 118, 148, 0.22)',
+    borderLeftColor: 'rgba(95, 118, 148, 0.18)',
+  },
+  abyssCell: {
+    backgroundColor: '#040609',
   },
   tileTexture: {
     width: '100%',
@@ -425,13 +487,40 @@ const styles = StyleSheet.create({
   },
   walkableHighlight: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: 1,
+    left: 1,
+    right: 1,
+    bottom: 1,
     borderWidth: 1.5,
-    borderColor: withAlpha(ARCADE_GOLD, 0.75),
-    backgroundColor: withAlpha(ARCADE_GOLD, 0.14),
+    borderColor: withAlpha(STEP_SAFE_GREEN, 0.78),
+    backgroundColor: withAlpha(STEP_SAFE_GREEN, 0.14),
+    borderRadius: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  walkableDangerHighlight: {
+    borderColor: withAlpha(CAMERA_VISION_RED, 0.85),
+    backgroundColor: withAlpha(CAMERA_VISION_RED, 0.2),
+  },
+  walkableDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: withAlpha(STEP_SAFE_GREEN, 0.85),
+  },
+  walkableDangerDot: {
+    backgroundColor: withAlpha(CAMERA_VISION_RED, 0.9),
+  },
+  enemyTileMarker: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    right: 2,
+    bottom: 2,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 70, 70, 0.65)',
+    backgroundColor: 'rgba(255, 45, 55, 0.15)',
+    borderRadius: 4,
   },
   portalInnerTint: {
     position: 'absolute',

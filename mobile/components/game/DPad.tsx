@@ -1,4 +1,4 @@
-// Cruceta de movimiento + botón Esperar (en el centro).
+// Cruceta de movimiento + botón Esperar (en el centro) con acabado táctil arcade 15-bit.
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Hourglass } from 'lucide-react-native';
 import { colors, withAlpha } from '../../theme/colors';
@@ -11,7 +11,7 @@ interface Props {
   onWait: () => void;
 }
 
-const BTN = 58;
+const BTN = 54;
 
 interface ArrowProps {
   dir: Direction;
@@ -28,12 +28,12 @@ function ArrowButton({ dir, Icon, accent, disabled, onMove }: ArrowProps) {
       onPress={() => onMove(dir)}
       style={({ pressed }) => [
         styles.btn,
-        { borderColor: withAlpha(accent, 0.6) },
-        pressed && { backgroundColor: withAlpha(accent, 0.25) },
+        { borderColor: withAlpha(accent, 0.7) },
+        pressed && [styles.btnPressed, { backgroundColor: withAlpha(accent, 0.25) }],
         disabled && styles.disabled,
       ]}
     >
-      <Icon size={30} color={accent} />
+      <Icon size={28} color={accent} />
     </Pressable>
   );
 }
@@ -56,11 +56,11 @@ export function DPad({ accent, disabled, onMove, onWait }: Props) {
           style={({ pressed }) => [
             styles.btn,
             styles.wait,
-            pressed && { backgroundColor: 'rgba(255,255,255,0.12)' },
+            pressed && styles.btnPressed,
             disabled && styles.disabled,
           ]}
         >
-          <Hourglass size={18} color={colors.text} />
+          <Hourglass size={16} color={colors.text} />
           <Text style={styles.waitText}>Esperar</Text>
         </Pressable>
         <ArrowButton dir="right" Icon={ChevronRight} {...common} />
@@ -76,12 +76,12 @@ export function DPad({ accent, disabled, onMove, onWait }: Props) {
 
 const styles = StyleSheet.create({
   grid: {
-    gap: 6,
+    gap: 5,
     alignItems: 'center',
   },
   row: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 5,
   },
   spacer: {
     width: BTN,
@@ -90,18 +90,24 @@ const styles = StyleSheet.create({
   btn: {
     width: BTN,
     height: BTN,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1.5,
-    backgroundColor: colors.panel,
+    borderBottomWidth: 3.5,
+    backgroundColor: '#151d27',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  btnPressed: {
+    transform: [{ translateY: 1 }],
+  },
   wait: {
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: '#3d4d60',
+    backgroundColor: '#121820',
   },
   waitText: {
-    color: colors.text,
-    fontSize: 10,
+    color: '#d0dce8',
+    fontSize: 9,
+    fontWeight: '800',
     marginTop: 2,
   },
   disabled: {

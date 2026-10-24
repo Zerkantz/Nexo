@@ -1,9 +1,11 @@
-// Pantalla de Juego en Formato Horizontal (Landscape) estilo Arcade Metal Slug:
-// Columna Izquierda: Cabecera, Agente y HUD Táctico.
-// Columna Central: Tablero 12x12 con texturas y sprites 32-bit.
-// Columna Derecha: Cruceta de control ergonómica.
+// Pantalla de Juego en Formato Horizontal (Landscape) estilo 15/32-Bit:
+// - Oculta la barra de estado del sistema para aprovechar el 100% del alto de pantalla.
+// - Columna Izquierda: Navegación, Ficha del Agente y HUD Táctico compacto.
+// - Columna Central: Tablero 12x12 autoajustado al espacio real disponible (sin encimarse con paneles).
+// - Columna Derecha: Cruceta de control ergonómica y leyenda visual rápida del mapa.
 import React, { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
   Animated,
@@ -27,7 +29,7 @@ import { HowToPlayGuide } from '../../components/tutorial/HowToPlayGuide';
 import { TipCard } from '../../components/tutorial/TipCard';
 import { useGameSession } from '../../hooks/useGameSession';
 import { useTutorial } from '../../hooks/useTutorial';
-import { colors, getLevelAccent } from '../../theme/colors';
+import { colors } from '../../theme/colors';
 import {
   CHARACTERS,
   getCharacterAvatar,
@@ -52,6 +54,7 @@ export default function GameScreen() {
   const { width, height } = useWindowDimensions();
   const [guideOpen, setGuideOpen] = useState(false);
   const [characterId, setCharacterId] = useState<CharacterId>('jesus');
+  const [centerSize, setCenterSize] = useState<{ w: number; h: number } | null>(null);
 
   // Cortina negra de entrada (disuelve desde el fade-to-black del selector de personaje)
   const entryFade = useRef(new Animated.Value(1)).current;
@@ -78,6 +81,7 @@ export default function GameScreen() {
   if (!state) {
     return (
       <SafeAreaView style={[styles.container, styles.centered]}>
+        <StatusBar hidden />
         {error ? (
           <Text style={styles.error}>{error}</Text>
         ) : (
@@ -90,14 +94,13 @@ export default function GameScreen() {
     );
   }
 
-  const accent = getLevelAccent(state.theme);
-
-  // En horizontal (landscape), el tablero 12x12 aprovecha el alto completo disponible
-  const isLandscape = width >= height;
-  const maxBoardH = height - 20;
-  const maxBoardW = isLandscape ? width - 420 : width - 16;
-  const boardBudget = Math.min(maxBoardH, Math.max(240, maxBoardW));
-  const tileSize = Math.max(18, Math.floor(boardBudget / Math.max(state.width, state.height)));
+  // Cálculo preciso del tamaño del tablero 12x12 para nunca invadir los paneles laterales
+  const fallbackW = Math.max(200, width - 460);
+  const fallbackH = Math.max(200, height - 20);
+  const availW = centerSize ? Math.max(180, centerSize.w - 8) : fallbackW;
+  const availH = centerSize ? Math.max(180, centerSize.h - 6) : fallbackH;
+  const boardBudget = Math.min(availW, availH);
+  const tileSize = Math.max(16, Math.floor(boardBudget / Math.max(state.width, state.height)));
 
   const showingTip = !!tutorial.current;
   const canPlay = state.status === 'PLAYING' && !showingTip && !transitioningRoom;
@@ -105,21 +108,21 @@ export default function GameScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar hidden />
       <View style={styles.landscapeLayout}>
         {/* 1. Panel Izquierdo: Navegación, Ficha del Agente y HUD */}
         <View style={styles.leftSidebar}>
           <View style={styles.navRow}>
             <Pressable onPress={goBack} style={styles.iconBtn}>
-              <ArrowLeft size={20} color="#ffcc00" />
+              <ArrowLeft size={18} color="#ffcc00" />
             </Pressable>
             <View style={styles.sectorBadge}>
-              <Text style={styles.sectorLabel} numberOfLines={1}>
+              <Text style={styles.sectorLabel} numberOfLines={2}>
                 {state.roomName ?? 'BÓVEDA CENTRAL'}
               </Text>
-              {isDemo && <Text style={styles.demoTag}>OPERACIÓN TÁCTICA 32-BIT</Text>}
             </View>
             <Pressable onPress={() => setGuideOpen(true)} style={styles.iconBtn}>
-              <CircleHelp size={20} color="#ffcc00" />
+              <CircleHelp size={18} color="#ffcc00" />
             </Pressable>
           </View>
 
@@ -129,7 +132,9 @@ export default function GameScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.agentRoleTag}>AGENTE EN CAMPO</Text>
               <Text style={styles.agentNameText}>{activeChar.name.toUpperCase()}</Text>
-              <Text style={styles.agentAliasText}>"{activeChar.alias}"</Text>
+              <Text style={styles.agentAliasText} numberOfLines={1}>
+                {activeChar.role}
+              </Text>
             </View>
           </View>
 
@@ -137,8 +142,16 @@ export default function GameScreen() {
           <Hud state={state} me={me} />
         </View>
 
-        {/* 2. Columna Central: Tablero 12x12 estilo Metal Slug */}
-        <View style={styles.centerBoardArea}>
+        {/* 2. Columna Central: Tablero 12x12 estilo 15-bit */}
+        <View
+          style={styles.centerBoardArea}
+          onLayout={(e) => {
+            const { width: lw, height: lh } = e.nativeEvent.layout;
+            if (lw > 0 && lh > 0) {
+              setCenterSize({ w: lw, h: lh });
+            }
+          }}
+        >
           <Board
             state={state}
             me={me}
@@ -150,10 +163,30 @@ export default function GameScreen() {
           />
         </View>
 
-        {/* 3. Panel Derecho: Cruceta de Control (D-Pad) */}
+        {/* 3. Panel Derecho: Cruceta de Control (D-Pad) + Leyenda Intuitiva del Mapa */}
         <View style={styles.rightSidebar}>
           <Text style={styles.controlsLabel}>CONTROL TÁCTICO</Text>
           <DPad accent="#ffb800" disabled={!canPlay} onMove={move} onWait={wait} />
+
+          {/* Leyenda rápida para entender el mapa al instante */}
+          <View style={styles.legendBox}>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendSwatch, { backgroundColor: '#00E699' }]} />
+              <Text style={styles.legendText}>Paso disponible</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendSwatch, { backgroundColor: '#FF8800' }]} />
+              <Text style={styles.legendText}>Visión de guardia</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendSwatch, { backgroundColor: '#FF2E4C' }]} />
+              <Text style={styles.legendText}>Visión de cámara</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendSwatch, { backgroundColor: '#BD00FF' }]} />
+              <Text style={styles.legendText}>Puerta a otro cuarto</Text>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -209,7 +242,7 @@ export default function GameScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#090c10',
+    backgroundColor: '#090c11',
   },
   centered: {
     alignItems: 'center',
@@ -231,10 +264,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    gap: 12,
+    gap: 14,
   },
   leftSidebar: {
-    width: 225,
+    width: 210,
     height: '100%',
     justifyContent: 'space-between',
     gap: 8,
@@ -248,64 +281,60 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 34,
     height: 34,
-    borderRadius: 6,
-    backgroundColor: '#181f27',
+    borderRadius: 7,
+    backgroundColor: '#151d27',
     borderWidth: 1.5,
-    borderColor: '#3e4c5c',
+    borderColor: '#3a4a5e',
     alignItems: 'center',
     justifyContent: 'center',
   },
   sectorBadge: {
     flex: 1,
     alignItems: 'center',
+    paddingHorizontal: 2,
   },
   sectorLabel: {
     color: '#ffcc00',
     fontSize: 11,
+    lineHeight: 14,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
     textAlign: 'center',
-  },
-  demoTag: {
-    color: '#8a99ad',
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: 1,
   },
   agentBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#141a22',
-    borderWidth: 2,
-    borderColor: '#384654',
+    gap: 9,
+    backgroundColor: '#131a23',
+    borderWidth: 1.5,
+    borderColor: '#344456',
     borderRadius: 8,
     padding: 8,
   },
   agentAvatar: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 6,
     borderWidth: 1.5,
     borderColor: '#ffb800',
     backgroundColor: '#080a0e',
   },
   agentRoleTag: {
-    color: '#8a99ad',
+    color: '#8899ad',
     fontSize: 8,
     fontWeight: '900',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
   },
   agentNameText: {
     color: '#ffcc00',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     letterSpacing: 1,
   },
   agentAliasText: {
-    color: '#c8d4e0',
+    color: '#b8c8d8',
     fontSize: 10,
-    fontStyle: 'italic',
+    fontWeight: '600',
   },
   centerBoardArea: {
     flex: 1,
@@ -314,17 +343,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rightSidebar: {
-    width: 195,
+    width: 184,
     height: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
+    paddingVertical: 2,
   },
   controlsLabel: {
-    color: '#8a99ad',
+    color: '#96a8bc',
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1.5,
+  },
+  legendBox: {
+    width: '100%',
+    backgroundColor: '#131a23',
+    borderWidth: 1,
+    borderColor: '#2a3748',
+    borderRadius: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    gap: 3,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  legendSwatch: {
+    width: 9,
+    height: 9,
+    borderRadius: 2,
+  },
+  legendText: {
+    color: '#b8c8d8',
+    fontSize: 9.5,
+    fontWeight: '700',
   },
   tipOverlay: {
     position: 'absolute',

@@ -1,7 +1,9 @@
 // Selector de Personaje en Horizontal (Landscape) estilo Metal Slug:
-// Muestra únicamente las 4 tarjetas completas de los personajes lado a lado.
-// Al seleccionar uno, su tarjeta sube unos píxeles hacia arriba, cambia a su pose seleccionada
-// y ejecuta una transición de pantalla negra hacia el nivel.
+// - Muestra las 4 tarjetas completas de los personajes lado a lado.
+// - El jugador puede tocar cualquier personaje y cambiar de elección libremente:
+//   la tarjeta seleccionada sube unos píxeles hacia arriba y cambia a su pose de seleccionado.
+// - En la esquina inferior derecha se ubica el botón "COMENZAR", el cual activa
+//   la transición con pantalla negra hacia la partida.
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -12,9 +14,10 @@ import {
   Text,
   View,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Play } from 'lucide-react-native';
 import {
   CHARACTER_LIST,
   getCharacterCards,
@@ -26,57 +29,64 @@ import {
 export default function CharacterSelectScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ next?: string }>();
-  const [chosenId, setChosenId] = useState<CharacterId | null>(null);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [chosenId, setChosenId] = useState<CharacterId>('jesus');
+  const [isStarting, setIsStarting] = useState(false);
 
   // Animación de elevación (unos píxeles hacia arriba) para cada uno de los 4 personajes
   const liftAnims = useRef<Record<CharacterId, Animated.Value>>({
-    jesus: new Animated.Value(0),
+    jesus: new Animated.Value(-14),
     vicente: new Animated.Value(0),
     francisco: new Animated.Value(0),
     alberto: new Animated.Value(0),
   }).current;
 
-  // Animación de pantalla negra (fade-to-black)
+  // Animación de pantalla negra (fade-to-black) al presionar COMENZAR
   const blackFadeAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    // Precargar el último personaje guardado sin disparar la transición aún
-    getSelectedCharacter().then(() => {});
-  }, []);
-
-  const handlePickCharacter = async (id: CharacterId) => {
-    if (isTransitioning) return;
-    setChosenId(id);
-    setIsTransitioning(true);
-    await setSelectedCharacter(id);
-
-    // 1. Elevar la tarjeta seleccionada unos píxeles hacia arriba (-18px) y bajar las demás a 0
+  const animateCardsForSelection = (selectedId: CharacterId) => {
     CHARACTER_LIST.forEach((c) => {
       Animated.timing(liftAnims[c.id], {
-        toValue: c.id === id ? -18 : 0,
-        duration: 220,
+        toValue: c.id === selectedId ? -14 : 0,
+        duration: 200,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start();
     });
+  };
 
-    // 2. Tras apreciar la pose seleccionada y la elevación, hacer transición a pantalla negra
-    setTimeout(() => {
-      Animated.timing(blackFadeAnim, {
-        toValue: 1,
-        duration: 420,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }).start(() => {
-        const destination = params.next || '/game/demo';
-        router.replace(destination as any);
-      });
-    }, 520);
+  useEffect(() => {
+    getSelectedCharacter().then((savedId) => {
+      setChosenId(savedId);
+      animateCardsForSelection(savedId);
+    });
+  }, []);
+
+  const handlePickCharacter = async (id: CharacterId) => {
+    if (isStarting) return;
+    setChosenId(id);
+    animateCardsForSelection(id);
+    await setSelectedCharacter(id);
+  };
+
+  const handleConfirmStart = async () => {
+    if (isStarting || !chosenId) return;
+    setIsStarting(true);
+    await setSelectedCharacter(chosenId);
+
+    Animated.timing(blackFadeAnim, {
+      toValue: 1,
+      duration: 420,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      const destination = params.next || '/game/demo';
+      router.replace(destination as any);
+    });
   };
 
   return (
     <View style={styles.root}>
+      <StatusBar hidden />
       {/* Franja superior de advertencia Metal Slug */}
       <View style={styles.hazardTop} />
 
@@ -84,18 +94,16 @@ export default function CharacterSelectScreen() {
         {/* Cabecera minimalista Arcade */}
         <View style={styles.header}>
           <Pressable
-            onPress={() => !isTransitioning && router.back()}
+            onPress={() => !isStarting && router.back()}
             style={styles.backBtn}
           >
             <ArrowLeft size={18} color="#ffcc00" />
           </Pressable>
           <Text style={styles.headerTitle}>PLAYER SELECT</Text>
-          <View style={styles.creditBadge}>
-            <Text style={styles.creditText}>CREDIT 01</Text>
-          </View>
+          <View style={styles.headerRightSpacer} />
         </View>
 
-        {/* Fila horizontal con las 4 tarjetas completas sin información extra debajo */}
+        {/* Fila horizontal con las 4 tarjetas completas */}
         <View style={styles.cardsRow}>
           {CHARACTER_LIST.map((char) => {
             const isSelected = chosenId === char.id;
@@ -113,7 +121,7 @@ export default function CharacterSelectScreen() {
                 ]}
               >
                 <Pressable
-                  disabled={isTransitioning}
+                  disabled={isStarting}
                   onPress={() => handlePickCharacter(char.id)}
                   style={[
                     styles.cardFrame,
@@ -131,11 +139,26 @@ export default function CharacterSelectScreen() {
             );
           })}
         </View>
+
+        {/* Botón de COMENZAR flotante en la esquina inferior derecha */}
+        <View style={styles.bottomRightCorner}>
+          <Pressable
+            disabled={isStarting}
+            onPress={handleConfirmStart}
+            style={({ pressed }) => [
+              styles.startCornerBtn,
+              pressed && styles.startCornerBtnPressed,
+            ]}
+          >
+            <Text style={styles.startCornerBtnText}>COMENZAR</Text>
+            <Play size={16} color="#ffffff" fill="#ffffff" />
+          </Pressable>
+        </View>
       </SafeAreaView>
 
       {/* Cortina de transición con pantalla negra */}
       <Animated.View
-        pointerEvents={isTransitioning ? 'auto' : 'none'}
+        pointerEvents={isStarting ? 'auto' : 'none'}
         style={[
           styles.blackScreenOverlay,
           { opacity: blackFadeAnim },
@@ -151,14 +174,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#07090c',
   },
   hazardTop: {
-    height: 7,
+    height: 6,
     backgroundColor: '#ffb800',
     borderBottomWidth: 2,
     borderBottomColor: '#000000',
   },
   safeArea: {
     flex: 1,
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingBottom: 10,
     justifyContent: 'space-between',
   },
@@ -166,12 +189,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 6,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     backgroundColor: '#1a2028',
     borderWidth: 1.5,
     borderColor: '#3a4654',
@@ -187,28 +210,18 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 2,
   },
-  creditBadge: {
-    backgroundColor: '#0c1f14',
-    borderWidth: 1.5,
-    borderColor: '#00ff88',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  creditText: {
-    color: '#00ff88',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1,
+  headerRightSpacer: {
+    width: 36,
   },
   cardsRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 18,
+    gap: 14,
     paddingTop: 14,
-    paddingBottom: 4,
+    paddingBottom: 6,
+    paddingRight: 115,
   },
   cardWrapper: {
     height: '100%',
@@ -216,7 +229,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardFrame: {
-    height: '94%',
+    height: '92%',
     aspectRatio: 440 / 980,
     backgroundColor: '#12161b',
     borderWidth: 3,
@@ -263,6 +276,41 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
     borderRadius: 4,
     backgroundColor: '#050608',
+  },
+  bottomRightCorner: {
+    position: 'absolute',
+    right: 20,
+    bottom: 14,
+    zIndex: 30,
+  },
+  startCornerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#d83800',
+    borderWidth: 2.5,
+    borderColor: '#ffcc00',
+    borderRadius: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.9,
+    shadowRadius: 4,
+    elevation: 10,
+  },
+  startCornerBtnPressed: {
+    transform: [{ scale: 0.96 }],
+    backgroundColor: '#b82e00',
+  },
+  startCornerBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    textShadowColor: '#000',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   blackScreenOverlay: {
     position: 'absolute',
