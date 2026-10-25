@@ -31,19 +31,19 @@ const VISUAL_ELEMENTS = [
   },
   {
     name: 'Módulo de Energía',
-    desc: 'Batería de 16 bits con símbolo de rayo. Pasa sobre ella para recargar +30 % de energía.',
+    desc: 'Batería de 16 bits con símbolo de rayo. Pasa sobre ella para recargar +40 % de energía.',
     img: TILE_ASSETS.energy,
     accent: '#00E699',
   },
   {
     name: 'Terminal de Datos',
-    desc: 'Consola de seguridad. Hackéala desde tu reloj estando en una casilla vecina.',
+    desc: 'Písala (cuesta 25 % de energía) para desbloquear las compuertas del sector y apagar cámaras por 8 turnos.',
     img: TILE_ASSETS.terminal,
     accent: '#00D8FF',
   },
   {
     name: 'Compuerta Blindada',
-    desc: 'Bloquea el paso con barras láser rojas. Se abre hackeándola desde tu reloj.',
+    desc: 'Requiere haber hackeado la Terminal del sector y gastar 25 % de energía para abrirse.',
     img: TILE_ASSETS.doorClosed,
     accent: '#FF2E4C',
   },

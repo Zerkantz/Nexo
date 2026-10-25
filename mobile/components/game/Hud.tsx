@@ -1,7 +1,8 @@
 // HUD táctico compacto para vista horizontal:
-// Muestra turno, estado de sigilo/alerta, barra de energía, barra de sospecha y estado del reloj.
+// Muestra turno, estado de sigilo/alerta, barra de energía, barra de sospecha y
+// el objetivo táctico actual según los recursos restantes del sector.
 import { StyleSheet, Text, View } from 'react-native';
-import { Battery, ShieldAlert, Watch } from 'lucide-react-native';
+import { Battery, Crosshair, ShieldAlert } from 'lucide-react-native';
 import {
   alertLabel,
   getAlertColor,
@@ -15,18 +16,30 @@ interface Props {
   me: SessionPlayer | undefined;
 }
 
-function getWatchHint(state: SessionState, me: SessionPlayer | undefined): string {
-  if (!me) return 'Esperando jugador...';
-  const near = state.entities.find(
-    (e) =>
-      (e.type === 'door' || e.type === 'dual_door' || e.type === 'terminal') &&
-      !e.open &&
-      Math.abs(e.x - me.x) + Math.abs(e.y - me.y) === 1,
-  );
-  if (near?.type === 'terminal') return 'Terminal cerca: usa HACKEAR en tu reloj';
-  if (near) return 'Puerta cerca: usa HACKEAR en tu reloj';
-  if (getAlertState(state.alert) === 'SUSPICION') return 'En alerta: usa CAMUFLAJE en tu reloj';
-  return 'Reloj listo: Escáner, Sabotaje y Camuflaje';
+/**
+ * Guía contextual paso a paso para que el jugador sepa qué recurso del mapa necesita utilizar.
+ */
+function getTacticalObjective(state: SessionState, me: SessionPlayer | undefined): string {
+  if (!me) return 'Esperando agente...';
+  const unhackedTerm = state.entities.find((e) => e.type === 'terminal' && !e.open);
+  const closedDoors = state.entities.filter((e) => e.type === 'door' && !e.open);
+
+  if (unhackedTerm) {
+    if (me.battery < 25) {
+      return '1. Recoge un Módulo de Energía (+40%) para poder hackear la Terminal.';
+    }
+    return '2. Ve a la Terminal de Datos (25% bat.) para desbloquear compuertas y apagar cámaras.';
+  }
+
+  if (closedDoors.length > 0 && me.battery < 25) {
+    return '3. Recoge el otro Módulo de Energía (+40%) para abrir la siguiente Compuerta (25% bat.).';
+  }
+
+  if (state.roomId === 'sector_1') {
+    return '4. Abre la Compuerta y cruza la Puerta Morada hacia el Sector 2.';
+  }
+
+  return '4. Abre la Compuerta Final y llega a la Plataforma de Extracción.';
 }
 
 export function Hud({ state, me }: Props) {
@@ -65,11 +78,11 @@ export function Hud({ state, me }: Props) {
         <Text style={[styles.barValue, { color: alertColor }]}>{state.alert}%</Text>
       </View>
 
-      {/* Aviso del reloj */}
+      {/* Objetivo táctico dinámico */}
       <View style={styles.hint}>
-        <Watch size={13} color="#96a8bc" />
-        <Text style={styles.hintText} numberOfLines={2}>
-          {getWatchHint(state, me)}
+        <Crosshair size={13} color="#ffcc00" />
+        <Text style={styles.hintText} numberOfLines={3}>
+          {getTacticalObjective(state, me)}
         </Text>
       </View>
     </View>
@@ -133,16 +146,17 @@ const styles = StyleSheet.create({
   },
   hint: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 6,
     paddingTop: 5,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.07)',
   },
   hintText: {
-    color: '#96a8bc',
+    color: '#d8e4f0',
     fontSize: 10,
     lineHeight: 13,
+    fontWeight: '700',
     flex: 1,
   },
 });

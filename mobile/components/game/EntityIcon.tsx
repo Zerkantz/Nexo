@@ -1,4 +1,4 @@
-// Sprites 32-bit de cada tipo de entidad del tablero (estilo Metal Slug).
+// Sprites 16-bit de cada tipo de entidad del tablero.
 import React from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Crosshair, Gem, Plane } from 'lucide-react-native';
@@ -15,7 +15,7 @@ interface Props {
 export function EntityIcon({ entity, size }: Props) {
   const disabled = !!entity.disabledTurns;
   const enemyColor = disabled ? colors.textMuted : colors.danger;
-  const spriteSize = Math.round(size * 1.55);
+  const spriteSize = Math.round(size * 1.15);
 
   switch (entity.type) {
     case 'camera': {
@@ -25,7 +25,7 @@ export function EntityIcon({ entity, size }: Props) {
           source={camImg}
           style={[
             styles.sprite,
-            { width: spriteSize, height: spriteSize, opacity: disabled ? 0.45 : 1 },
+            { width: spriteSize, height: spriteSize, opacity: disabled ? 0.38 : 1 },
           ]}
         />
       );
@@ -47,7 +47,7 @@ export function EntityIcon({ entity, size }: Props) {
       return (
         <Image
           source={TILE_ASSETS.trap}
-          style={[styles.sprite, { width: spriteSize * 0.9, height: spriteSize * 0.9 }]}
+          style={[styles.sprite, { width: spriteSize * 0.92, height: spriteSize * 0.92 }]}
         />
       );
     case 'door':
@@ -61,10 +61,15 @@ export function EntityIcon({ entity, size }: Props) {
       );
     case 'terminal':
       return (
-        <Image
-          source={TILE_ASSETS.terminal}
-          style={[styles.sprite, { width: spriteSize, height: spriteSize }]}
-        />
+        <View style={[styles.terminalWrap, entity.open && styles.terminalHacked]}>
+          <Image
+            source={TILE_ASSETS.terminal}
+            style={[
+              styles.sprite,
+              { width: spriteSize * 0.95, height: spriteSize * 0.95, opacity: entity.open ? 0.65 : 1 },
+            ]}
+          />
+        </View>
       );
     case 'energy':
       return (
@@ -83,5 +88,15 @@ export function EntityIcon({ entity, size }: Props) {
 const styles = StyleSheet.create({
   sprite: {
     resizeMode: 'contain',
+  },
+  terminalWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 4,
+  },
+  terminalHacked: {
+    borderWidth: 1.5,
+    borderColor: '#00E699',
+    backgroundColor: 'rgba(0, 230, 153, 0.22)',
   },
 });
