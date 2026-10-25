@@ -1,20 +1,15 @@
-// Barra superior compartida para las pantallas del Centro de Mando en formato Horizontal (Landscape).
-// Muestra navegación rápida entre secciones, recursos del jugador (Créditos, Energía, Intel)
-// y estado del Smartwatch vinculado.
+// Barra superior para las pantallas internas en formato Horizontal (Landscape).
+// Permite regresar al Menú de Modos (/?menu=1), muestra el título de la sección actual,
+// los recursos del jugador (Créditos, Energía, Intel) y el estado del Smartwatch.
 import React from 'react';
-import { Link, usePathname, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   ArrowLeft,
   Coins,
   Cpu,
-  Globe,
   Home,
-  Map,
-  Shield,
-  User,
   Watch,
-  Wrench,
   Zap,
 } from 'lucide-react-native';
 import type { PlayerSummary, WatchDeviceInfo } from '../../lib/api';
@@ -24,39 +19,51 @@ interface CommandHeaderProps {
   subtitle?: string;
   player?: PlayerSummary;
   watch?: WatchDeviceInfo | null;
+  backTo?: string;
 }
 
-const NAV_ITEMS = [
-  { href: '/missions', label: 'NIVELES', Icon: Map },
-  { href: '/workshop', label: 'TALLER', Icon: Wrench },
-  { href: '/online', label: 'ONLINE', Icon: Globe },
-  { href: '/base', label: 'MI BASE', Icon: Shield },
-  { href: '/pair', label: 'RELOJ', Icon: Watch },
-  { href: '/profile', label: 'PERFIL', Icon: User },
-] as const;
-
-export function CommandHeader({ title, subtitle, player, watch }: CommandHeaderProps) {
+export function CommandHeader({
+  title,
+  subtitle,
+  player,
+  watch,
+  backTo,
+}: CommandHeaderProps) {
   const router = useRouter();
-  const pathname = usePathname();
+
+  const handleBack = () => {
+    if (backTo) {
+      router.replace(backTo as any);
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/?menu=1' as any);
+    }
+  };
 
   return (
     <View style={styles.wrapper}>
       <View style={styles.hazardTop} />
       <View style={styles.bar}>
-        {/* Bloque izquierdo: Volver al inicio + Título */}
+        {/* Bloque izquierdo: Volver + Menú de Modos + Título */}
         <View style={styles.leftGroup}>
           <Pressable
-            onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-            style={styles.iconBtn}
+            onPress={handleBack}
+            style={styles.backBtn}
             accessibilityLabel="Volver"
           >
-            <ArrowLeft size={16} color="#ffcc00" />
+            <ArrowLeft size={15} color="#ffcc00" />
+            <Text style={styles.backBtnText}>VOLVER</Text>
           </Pressable>
-          <Link href="/" asChild>
-            <Pressable style={styles.iconBtn} accessibilityLabel="Menú Principal">
-              <Home size={16} color="#9fb3c8" />
-            </Pressable>
-          </Link>
+
+          <Pressable
+            onPress={() => router.replace('/?menu=1' as any)}
+            style={styles.iconBtn}
+            accessibilityLabel="Menú de Modos"
+          >
+            <Home size={15} color="#9fb3c8" />
+          </Pressable>
+
           <View style={styles.titleBox}>
             <Text style={styles.titleText} numberOfLines={1}>
               {title}
@@ -69,56 +76,38 @@ export function CommandHeader({ title, subtitle, player, watch }: CommandHeaderP
           </View>
         </View>
 
-        {/* Bloque central: Pestañas de navegación rápida */}
-        <View style={styles.navTabs}>
-          {NAV_ITEMS.map(({ href, label, Icon }) => {
-            const active = pathname === href;
-            return (
-              <Link key={href} href={href as any} asChild>
-                <Pressable style={[styles.navTab, active && styles.navTabActive]}>
-                  <Icon size={12} color={active ? '#0b0e14' : '#ffcc00'} />
-                  <Text style={[styles.navTabText, active && styles.navTabTextActive]}>
-                    {label}
-                  </Text>
-                </Pressable>
-              </Link>
-            );
-          })}
-        </View>
-
         {/* Bloque derecho: Recursos del jugador y estado del reloj */}
         {player ? (
           <View style={styles.resourcesGroup}>
             <View style={styles.resBadge}>
               <Coins size={12} color="#FFD700" />
-              <Text style={[styles.resValue, { color: '#FFD700' }]}>{player.credits}</Text>
+              <Text style={[styles.resValue, { color: '#FFD700' }]}>{player.credits} CR</Text>
             </View>
             <View style={styles.resBadge}>
               <Zap size={12} color="#00F0FF" />
-              <Text style={[styles.resValue, { color: '#00F0FF' }]}>{player.energy}</Text>
+              <Text style={[styles.resValue, { color: '#00F0FF' }]}>{player.energy} EN</Text>
             </View>
             <View style={styles.resBadge}>
               <Cpu size={12} color="#BD00FF" />
-              <Text style={[styles.resValue, { color: '#E299FF' }]}>{player.intel}</Text>
+              <Text style={[styles.resValue, { color: '#E299FF' }]}>{player.intel} IN</Text>
             </View>
-            <Link href="/pair" asChild>
-              <Pressable
+            <Pressable
+              onPress={() => router.push('/pair')}
+              style={[
+                styles.watchBadge,
+                watch ? styles.watchBadgeLinked : styles.watchBadgeUnlinked,
+              ]}
+            >
+              <Watch size={12} color={watch ? '#00E699' : '#FF8800'} />
+              <Text
                 style={[
-                  styles.watchBadge,
-                  watch ? styles.watchBadgeLinked : styles.watchBadgeUnlinked,
+                  styles.watchBadgeText,
+                  { color: watch ? '#00E699' : '#FF8800' },
                 ]}
               >
-                <Watch size={12} color={watch ? '#00E699' : '#FF8800'} />
-                <Text
-                  style={[
-                    styles.watchBadgeText,
-                    { color: watch ? '#00E699' : '#FF8800' },
-                  ]}
-                >
-                  {watch ? 'DECK OK' : 'SIN RELOJ'}
-                </Text>
-              </Pressable>
-            </Link>
+                {watch ? 'RELOJ ENLAZADO' : 'RELOJ NO ENLAZADO'}
+              </Text>
+            </Pressable>
           </View>
         ) : null}
       </View>
@@ -147,8 +136,25 @@ const styles = StyleSheet.create({
   leftGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     flexShrink: 1,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#151d28',
+    borderWidth: 1.5,
+    borderColor: '#ffcc00',
+  },
+  backBtnText: {
+    color: '#ffcc00',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
   iconBtn: {
     width: 32,
@@ -162,6 +168,7 @@ const styles = StyleSheet.create({
   },
   titleBox: {
     marginLeft: 2,
+    flexShrink: 1,
   },
   titleText: {
     color: '#ffcc00',
@@ -175,35 +182,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
   },
-  navTabs: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  navTab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 5,
-    backgroundColor: '#141c26',
-    borderWidth: 1,
-    borderColor: '#2c3b4e',
-  },
-  navTabActive: {
-    backgroundColor: '#ffcc00',
-    borderColor: '#ffffff',
-  },
-  navTabText: {
-    color: '#d4e2f0',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  navTabTextActive: {
-    color: '#0b0e14',
-  },
   resourcesGroup: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -216,7 +194,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#121923',
     borderWidth: 1,
     borderColor: '#2a394a',
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 5,
   },
@@ -228,7 +206,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 5,
     borderWidth: 1,

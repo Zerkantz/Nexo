@@ -103,11 +103,34 @@ export default function OnlineScreen() {
     <SafeAreaView style={styles.root}>
       <StatusBar hidden />
       <CommandHeader
-        title="RED TÁCTICA // CO-OP Y ASALTOS PvP"
-        subtitle="OPERACIONES EN ESCUADRÓN DE 4 DISPOSITIVOS E INCURSIONES A BASES"
+        title="MODO ONLINE // CO-OP Y ASALTOS PvP"
+        subtitle="OPERACIONES CON RELOJ VINCULADO EN ESCUADRÓN E INCURSIONES"
         player={profile.player}
         watch={profile.watch}
+        backTo="/?menu=1"
       />
+
+      {!profile.watch ? (
+        <View style={styles.watchGateContainer}>
+          <View style={styles.watchGateCard}>
+            <Watch size={36} color="#FF8800" />
+            <Text style={styles.watchGateKicker}>ACCESO RESTRINGIDO // PROTOCOLO NEXO</Text>
+            <Text style={styles.watchGateTitle}>DEBES ENLAZAR TU RELOJ PARA JUGAR ONLINE</Text>
+            <Text style={styles.watchGateDesc}>
+              Las partidas Cooperativas (4 dispositivos) y los Asaltos PvP requieren que tu
+              Smartwatch Wear OS esté vinculado mediante el código de 4 dígitos.
+            </Text>
+            <Pressable
+              onPress={() => router.replace('/pair?next=/online' as any)}
+              style={styles.watchGateBtn}
+            >
+              <Watch size={16} color="#ffffff" />
+              <Text style={styles.watchGateBtnText}>ENLAZAR RELOJ AHORA</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <>
 
       {/* Selector de sub-sección */}
       <View style={styles.subTabsBar}>
@@ -343,6 +366,8 @@ export default function OnlineScreen() {
           ))}
         </ScrollView>
       ) : null}
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -351,6 +376,58 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#070a0f',
+  },
+  watchGateContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  watchGateCard: {
+    maxWidth: 440,
+    backgroundColor: '#101722',
+    borderWidth: 2,
+    borderColor: '#FF8800',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    gap: 8,
+  },
+  watchGateKicker: {
+    color: '#FF8800',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+  },
+  watchGateTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  watchGateDesc: {
+    color: '#9db1c6',
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'center',
+  },
+  watchGateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#d83800',
+    borderWidth: 2,
+    borderColor: '#ffcc00',
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  watchGateBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   subTabsBar: {
     flexDirection: 'row',

@@ -156,9 +156,10 @@ export default function BaseEditorScreen() {
       <StatusBar hidden />
       <CommandHeader
         title="MI BASE PvP // EDITOR 10x10"
-        subtitle="DISEÑA TU FORTALEZA Y VALIDA EL CAMINO CON BFS"
+        subtitle="ACCESO DESDE TALLER DECK · VALIDA EL CAMINO CON BFS"
         player={profile.player}
         watch={profile.watch}
+        backTo="/workshop"
       />
 
       <View style={styles.body}>

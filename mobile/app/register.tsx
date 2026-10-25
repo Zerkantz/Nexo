@@ -1,7 +1,7 @@
 // Pantalla de Registro de Nuevo Agente en formato Horizontal (Landscape).
 // Conecta con POST /api/auth/register o crea el perfil local con recursos iniciales.
 import React, { useState } from 'react';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
@@ -152,12 +152,13 @@ export default function RegisterScreen() {
                 )}
               </Pressable>
 
-              <Link href="/login" asChild>
-                <Pressable style={styles.secondaryBtn}>
-                  <LogIn size={13} color="#ffcc00" />
-                  <Text style={styles.secondaryBtnText}>YA TENGO CUENTA // INICIAR SESIÓN</Text>
-                </Pressable>
-              </Link>
+              <Pressable
+                onPress={() => router.push('/login')}
+                style={styles.secondaryBtn}
+              >
+                <LogIn size={13} color="#ffcc00" />
+                <Text style={styles.secondaryBtnText}>YA TENGO CUENTA // INICIAR SESIÓN</Text>
+              </Pressable>
             </View>
           </View>
         </SafeAreaView>

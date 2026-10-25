@@ -65,10 +65,11 @@ export default function MissionsScreen() {
     <SafeAreaView style={styles.root}>
       <StatusBar hidden />
       <CommandHeader
-        title="OPERACIONES // 5 DISTRITOS"
-        subtitle="SELECCIONA UN OBJETIVO TÁCTICO PARA INFILTRAR"
+        title="MODO OFFLINE // LOS 5 DISTRITOS"
+        subtitle="ELIGE UN DISTRITO PARA PASAR AL SELECTOR DE PERSONAJE"
         player={profile.player}
         watch={profile.watch}
+        backTo="/?menu=1"
       />
 
       <View style={styles.body}>

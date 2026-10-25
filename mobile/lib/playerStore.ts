@@ -19,7 +19,7 @@ import {
 } from './api';
 import { clearToken, saveToken } from './tokenStorage';
 
-const STORAGE_KEY = 'nexo_player_profile_v1';
+const STORAGE_KEY = 'nexo_player_profile_v2';
 
 export interface SkillDefinition {
   code: SkillCode;
@@ -300,17 +300,12 @@ export const DEFAULT_PROFILE_STATE: PlayerProfileState = {
   player: {
     id: 1,
     username: 'AGENTE_NEXO',
-    email: 'agente@nexo. tactical',
+    email: 'agente@nexo.tactical',
     credits: 350,
     energy: 90,
     intel: 35,
   },
-  watch: {
-    id: 101,
-    deviceName: 'Wear OS Hacker Deck // MK-IV',
-    linkedAt: 'Vinculado y sincronizado',
-    lastSeenAt: 'En línea',
-  },
+  watch: null,
   upgrades: {
     battery: 1,
     cipher: 1,

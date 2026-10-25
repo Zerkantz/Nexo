@@ -1,8 +1,7 @@
 // Pantalla de Perfil del Agente e Historial de Misiones en formato Horizontal (Landscape).
-// Muestra estadísticas operativas, agente activo, estado del Smartwatch y bitácora
-// de partidas (SOLO, COOP y RAID).
+// Accesible desde el Taller Deck (/workshop).
 import React, { useEffect, useState } from 'react';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -53,10 +52,11 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.root}>
       <StatusBar hidden />
       <CommandHeader
-        title="EXPEDIENTE DEL AGENTE // HISTORIAL"
-        subtitle="ESTADÍSTICAS DE CAMPO Y BITÁCORA DE MISIONES"
+        title="PERFIL DEL AGENTE // HISTORIAL"
+        subtitle="ACCESO DESDE TALLER DECK · ESTADÍSTICAS Y BITÁCORA"
         player={profile.player}
         watch={profile.watch}
+        backTo="/workshop"
       />
 
       <View style={styles.body}>
@@ -94,19 +94,18 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.accountActions}>
-            <Link href={'/character-select?next=/profile' as any} asChild>
-              <Pressable style={styles.changeCharBtn}>
-                <UserCheck size={14} color="#ffcc00" />
-                <Text style={styles.changeCharText}>CAMBIAR AGENTE</Text>
-              </Pressable>
-            </Link>
+            <Pressable
+              onPress={() => router.push('/character-select?next=/profile' as any)}
+              style={styles.changeCharBtn}
+            >
+              <UserCheck size={14} color="#ffcc00" />
+              <Text style={styles.changeCharText}>CAMBIAR AGENTE</Text>
+            </Pressable>
 
-            <Link href="/login" asChild>
-              <Pressable style={styles.loginBtn}>
-                <LogIn size={14} color="#00F0FF" />
-                <Text style={styles.loginBtnText}>CUENTA / LOGIN</Text>
-              </Pressable>
-            </Link>
+            <Pressable onPress={() => router.push('/login')} style={styles.loginBtn}>
+              <LogIn size={14} color="#00F0FF" />
+              <Text style={styles.loginBtnText}>CUENTA / LOGIN</Text>
+            </Pressable>
 
             <Pressable onPress={handleLogout} style={styles.logoutBtn}>
               <LogOut size={14} color="#ff4d6d" />

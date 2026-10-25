@@ -1,16 +1,20 @@
 // Pantalla de Vinculación del Reloj Inteligente (Wear OS) en formato Horizontal.
+// Es requisito obligatorio para entrar al Modo Online (Co-op y Asaltos PvP).
 // Permite ingresar el código temporal de 4 dígitos mostrado en el Smartwatch
 // (POST /api/pairing/claim) y escucha el evento en tiempo real `pairing:linked`.
 import React, { useEffect, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   CheckCircle2,
   Delete,
+  Globe,
   Link2,
   Radio,
   RefreshCw,
+  ShieldAlert,
   Unlink,
   Watch,
 } from 'lucide-react-native';
@@ -26,6 +30,8 @@ import {
 import { getSocket } from '../lib/socket';
 
 export default function PairWatchScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ next?: string }>();
   const [profile, setProfile] = useState<PlayerProfileState>(DEFAULT_PROFILE_STATE);
   const [code, setCode] = useState('');
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
@@ -63,7 +69,14 @@ export default function PairWatchScreen() {
     const res = await linkWatchWithCode(finalCode);
     setProfile(res.profile);
     setFeedback({ ok: res.ok, text: res.message });
-    if (res.ok) setCode('');
+    if (res.ok) {
+      setCode('');
+      if (params.next) {
+        setTimeout(() => {
+          router.replace(params.next as any);
+        }, 450);
+      }
+    }
   };
 
   const handleUnlink = async () => {
@@ -79,28 +92,45 @@ export default function PairWatchScreen() {
     <SafeAreaView style={styles.root}>
       <StatusBar hidden />
       <CommandHeader
-        title="VINCULACIÓN DE RELOJ // WEAR OS"
-        subtitle="SINCRONIZACIÓN DEL HACKER DECK EN MUÑECA"
+        title="ENLAZAR RELOJ // WEAR OS HACKER DECK"
+        subtitle={
+          params.next === '/online'
+            ? 'PASO OBLIGATORIO ANTES DE ACCEDER AL MODO ONLINE'
+            : 'SINCRONIZACIÓN DEL HACKER DECK EN MUÑECA'
+        }
         player={profile.player}
         watch={profile.watch}
+        backTo="/?menu=1"
       />
+
+      {params.next === '/online' && !profile.watch ? (
+        <View style={styles.onlineRequiredBanner}>
+          <ShieldAlert size={14} color="#FF8800" />
+          <Text style={styles.onlineRequiredText}>
+            PARA JUGAR ONLINE DEBES ENLAZAR TU RELOJ: Ingresa el código de 4 dígitos del
+            Smartwatch (o pulsa DEMO 4821) para continuar al Lobby Online.
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.body}>
         {/* Columna Izquierda: Estado del Reloj y Deck Táctico */}
         <View style={styles.leftPanel}>
           <View style={styles.watchStatusCard}>
-            <View style={styles.watchCircleFrame}>
-              <Watch
-                size={34}
-                color={profile.watch ? '#00E699' : '#FF8800'}
-              />
+            <View
+              style={[
+                styles.watchCircleFrame,
+                { borderColor: profile.watch ? '#00E699' : '#FF8800' },
+              ]}
+            >
+              <Watch size={34} color={profile.watch ? '#00E699' : '#FF8800'} />
               <Text
                 style={[
                   styles.watchCircleState,
                   { color: profile.watch ? '#00E699' : '#FF8800' },
                 ]}
               >
-                {profile.watch ? 'ONLINE' : 'PENDIENTE'}
+                {profile.watch ? 'ENLAZADO' : 'SIN RELOJ'}
               </Text>
             </View>
 
@@ -112,7 +142,7 @@ export default function PairWatchScreen() {
               <Text style={styles.watchMetaSub}>
                 {profile.watch
                   ? `${profile.watch.linkedAt} · ${profile.watch.lastSeenAt}`
-                  : 'Abre la app NEXO en el Smartwatch para obtener un código de 4 dígitos.'}
+                  : 'Abre la app NEXO en el Smartwatch para generar un código de 4 dígitos.'}
               </Text>
 
               <View style={styles.specsRow}>
@@ -157,12 +187,24 @@ export default function PairWatchScreen() {
               })}
             </View>
 
-            {profile.watch ? (
-              <Pressable onPress={handleUnlink} style={styles.unlinkBtn}>
-                <Unlink size={13} color="#ff4d6d" />
-                <Text style={styles.unlinkBtnText}>DESVINCULAR SMARTWATCH ACTUAL</Text>
-              </Pressable>
-            ) : null}
+            <View style={styles.watchBottomRow}>
+              {profile.watch ? (
+                <>
+                  <Pressable
+                    onPress={() => router.replace('/online')}
+                    style={styles.goOnlineBtn}
+                  >
+                    <Globe size={13} color="#0b0e14" />
+                    <Text style={styles.goOnlineBtnText}>IR AL MODO ONLINE</Text>
+                  </Pressable>
+
+                  <Pressable onPress={handleUnlink} style={styles.unlinkBtn}>
+                    <Unlink size={13} color="#ff4d6d" />
+                    <Text style={styles.unlinkBtnText}>DESVINCULAR RELOJ</Text>
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
           </View>
         </View>
 
@@ -171,7 +213,6 @@ export default function PairWatchScreen() {
           <Text style={styles.keypadKicker}>EMPAREJAMIENTO POR CÓDIGO TEMPORAL</Text>
           <Text style={styles.keypadTitle}>INGRESA LOS 4 DÍGITOS DEL RELOJ</Text>
 
-          {/* 4 casillas de dígitos */}
           <View style={styles.digitsRow}>
             {[0, 1, 2, 3].map((idx) => {
               const char = code[idx] ?? '';
@@ -191,7 +232,6 @@ export default function PairWatchScreen() {
             })}
           </View>
 
-          {/* Teclado táctico compacto */}
           <View style={styles.keypadGrid}>
             {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
               <Pressable
@@ -212,8 +252,8 @@ export default function PairWatchScreen() {
               }}
               style={[styles.keyBtn, styles.keyBtnDemo]}
             >
-              <RefreshCw size={13} color="#00F0FF" />
-              <Text style={styles.keyBtnDemoText}>DEMO</Text>
+              <RefreshCw size={12} color="#00F0FF" />
+              <Text style={styles.keyBtnDemoText}>4821</Text>
             </Pressable>
             <Pressable
               onPress={() => handleDigit('0')}
@@ -256,7 +296,11 @@ export default function PairWatchScreen() {
             ]}
           >
             <Link2 size={16} color="#ffffff" />
-            <Text style={styles.claimBtnText}>VINCULAR RELOJ A MI CUENTA</Text>
+            <Text style={styles.claimBtnText}>
+              {params.next === '/online'
+                ? 'ENLAZAR RELOJ Y ENTRAR A ONLINE'
+                : 'ENLAZAR RELOJ A MI CUENTA'}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -269,17 +313,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#070a0f',
   },
+  onlineRequiredBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 14,
+    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 136, 0, 0.14)',
+    borderWidth: 1.5,
+    borderColor: '#FF8800',
+  },
+  onlineRequiredText: {
+    color: '#ffcc00',
+    fontSize: 10,
+    fontWeight: '800',
+    flex: 1,
+  },
   body: {
     flex: 1,
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     gap: 14,
   },
   leftPanel: {
     flex: 1.25,
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 8,
   },
   watchStatusCard: {
     flexDirection: 'row',
@@ -289,15 +352,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#29394d',
     borderRadius: 10,
-    padding: 12,
+    padding: 11,
   },
   watchCircleFrame: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
+    width: 78,
+    height: 78,
+    borderRadius: 39,
     backgroundColor: '#0a0f16',
     borderWidth: 3,
-    borderColor: '#00F0FF',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
@@ -305,7 +367,7 @@ const styles = StyleSheet.create({
   watchCircleState: {
     fontSize: 8,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   watchMeta: {
     flex: 1,
@@ -319,19 +381,19 @@ const styles = StyleSheet.create({
   },
   watchMetaName: {
     color: '#ffffff',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
     letterSpacing: 0.8,
   },
   watchMetaSub: {
     color: '#93a8be',
     fontSize: 10,
-    lineHeight: 14,
+    lineHeight: 13,
   },
   specsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 4,
+    marginTop: 3,
   },
   specBadge: {
     backgroundColor: '#0b1017',
@@ -339,7 +401,7 @@ const styles = StyleSheet.create({
     borderColor: '#273648',
     borderRadius: 5,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
   },
   specLabel: {
     color: '#7f95ab',
@@ -348,7 +410,7 @@ const styles = StyleSheet.create({
   },
   specValue: {
     color: '#00F0FF',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
   },
   deckSkillsCard: {
@@ -357,7 +419,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#263648',
     borderRadius: 10,
-    padding: 11,
+    padding: 10,
     justifyContent: 'space-between',
   },
   deckSkillsHeader: {
@@ -375,7 +437,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginVertical: 6,
+    marginVertical: 4,
   },
   skillChip: {
     width: '48%',
@@ -384,7 +446,7 @@ const styles = StyleSheet.create({
     borderColor: '#2d3f54',
     borderRadius: 6,
     paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingVertical: 4,
   },
   skillChipAlways: {
     borderColor: '#ffcc00',
@@ -396,17 +458,35 @@ const styles = StyleSheet.create({
   },
   skillChipCost: {
     color: '#8aa0b7',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '700',
+  },
+  watchBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  goOnlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#00E699',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 5,
+  },
+  goOnlineBtnText: {
+    color: '#0b0e14',
+    fontSize: 9,
+    fontWeight: '900',
   },
   unlinkBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
+    gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: 5,
     backgroundColor: 'rgba(255, 77, 109, 0.1)',
     borderWidth: 1,
@@ -424,7 +504,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#ffcc00',
     borderRadius: 10,
-    padding: 12,
+    padding: 11,
     justifyContent: 'space-between',
     alignItems: 'center',
   },
@@ -436,18 +516,18 @@ const styles = StyleSheet.create({
   },
   keypadTitle: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '900',
     letterSpacing: 1,
   },
   digitsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginVertical: 4,
+    marginVertical: 2,
   },
   digitBox: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 7,
     backgroundColor: '#090d13',
     borderWidth: 2,
@@ -463,19 +543,19 @@ const styles = StyleSheet.create({
   },
   digitText: {
     color: '#ffcc00',
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '900',
   },
   keypadGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     width: 216,
-    gap: 6,
+    gap: 5,
     justifyContent: 'center',
   },
   keyBtn: {
     width: 66,
-    height: 32,
+    height: 30,
     borderRadius: 6,
     backgroundColor: '#17212e',
     borderWidth: 1.5,
@@ -490,7 +570,7 @@ const styles = StyleSheet.create({
   },
   keyBtnText: {
     color: '#eef6ff',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
   },
   keyBtnDemo: {
@@ -506,7 +586,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
     width: '100%',
@@ -534,11 +614,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#ffcc00',
     borderRadius: 7,
-    paddingVertical: 9,
+    paddingVertical: 8,
   },
   claimBtnText: {
     color: '#ffffff',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1,
   },

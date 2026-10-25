@@ -1,7 +1,8 @@
-// Pantalla del Taller del Hacker Deck en formato Horizontal (Landscape).
-// Permite comprar las 3 mejoras de hardware (Sección 7) y equipar hasta 4 habilidades
-// activas para el Smartwatch Wear OS (Sección 6).
+// Pantalla del Taller Deck en formato Horizontal (Landscape).
+// Desde aquí el jugador mejora el Hacker Deck (Sección 7), equipa habilidades del reloj (Sección 6),
+// entra a su Base PvP 10x10 (/base) y consulta su Perfil de Agente (/profile).
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +14,9 @@ import {
   Lock,
   PlusCircle,
   Radio,
+  Shield,
+  User,
+  Watch,
   Wrench,
   Zap,
 } from 'lucide-react-native';
@@ -30,6 +34,7 @@ import {
 } from '../lib/playerStore';
 
 export default function WorkshopScreen() {
+  const router = useRouter();
   const [profile, setProfile] = useState<PlayerProfileState>(DEFAULT_PROFILE_STATE);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -63,7 +68,7 @@ export default function WorkshopScreen() {
     setProfile(next);
     setStatusMsg({
       ok: true,
-      text: 'Suministros tácticos acreditados (+500 CR, +150 EN, +60 IN) y habilidades desbloqueadas.',
+      text: 'Suministros acreditados (+500 CR, +150 EN, +60 IN) y módulos desbloqueados.',
     });
   };
 
@@ -74,11 +79,52 @@ export default function WorkshopScreen() {
     <SafeAreaView style={styles.root}>
       <StatusBar hidden />
       <CommandHeader
-        title="TALLER // HACKER DECK"
-        subtitle="MEJORAS DE HARDWARE Y HABILIDADES DE MUÑECA"
+        title="TALLER DECK // EQUIPAMIENTO, BASE Y PERFIL"
+        subtitle="MEJORA TU RELOJ, EDITA TU BASE 10x10 O REVISA TU EXPEDIENTE"
         player={profile.player}
         watch={profile.watch}
+        backTo="/?menu=1"
       />
+
+      {/* Barra de navegación interna del Taller Deck: acceso directo a Mi Base y Perfil */}
+      <View style={styles.hubNavRow}>
+        <View style={[styles.hubNavBtn, styles.hubNavBtnActive]}>
+          <Wrench size={14} color="#0b0e14" />
+          <Text style={[styles.hubNavText, styles.hubNavTextActive]}>
+            MEJORAS Y MÓDULOS DECK
+          </Text>
+        </View>
+
+        <Pressable
+          onPress={() => router.push('/base')}
+          style={[styles.hubNavBtn, styles.hubNavBtnBase]}
+        >
+          <Shield size={14} color="#00E699" />
+          <Text style={[styles.hubNavText, { color: '#00E699' }]}>
+            ENTRAR A MI BASE (EDITOR 10x10)
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/profile')}
+          style={[styles.hubNavBtn, styles.hubNavBtnProfile]}
+        >
+          <User size={14} color="#00F0FF" />
+          <Text style={[styles.hubNavText, { color: '#00F0FF' }]}>
+            VER MI PERFIL Y BITÁCORA
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/pair')}
+          style={[styles.hubNavBtn, styles.hubNavBtnWatch]}
+        >
+          <Watch size={14} color="#ffcc00" />
+          <Text style={[styles.hubNavText, { color: '#ffcc00' }]}>
+            ENLAZAR RELOJ
+          </Text>
+        </Pressable>
+      </View>
 
       {statusMsg ? (
         <View
@@ -116,7 +162,8 @@ export default function WorkshopScreen() {
             {UPGRADE_CATALOG.map((item) => {
               const currentLv = profile.upgrades[item.type];
               const currentInfo = item.tiers[currentLv - 1];
-              const nextInfo = currentLv === 1 ? item.tiers[1] : currentLv === 2 ? item.tiers[2] : null;
+              const nextInfo =
+                currentLv === 1 ? item.tiers[1] : currentLv === 2 ? item.tiers[2] : null;
 
               return (
                 <View key={item.type} style={styles.upgradeCard}>
@@ -126,7 +173,6 @@ export default function WorkshopScreen() {
                       <Text style={styles.upgradeSub}>{item.subtitle}</Text>
                     </View>
 
-                    {/* Indicador de barras de nivel 1..3 */}
                     <View style={styles.levelPips}>
                       {[1, 2, 3].map((lv) => (
                         <View
@@ -288,6 +334,50 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#070a0f',
+  },
+  hubNavRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    gap: 8,
+  },
+  hubNavBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#101722',
+    borderWidth: 1.5,
+    borderColor: '#2a3b4e',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: 7,
+  },
+  hubNavBtnActive: {
+    backgroundColor: '#ffcc00',
+    borderColor: '#ffffff',
+  },
+  hubNavBtnBase: {
+    borderColor: '#00E699',
+    backgroundColor: 'rgba(0, 230, 153, 0.08)',
+  },
+  hubNavBtnProfile: {
+    borderColor: '#00F0FF',
+    backgroundColor: 'rgba(0, 240, 255, 0.08)',
+  },
+  hubNavBtnWatch: {
+    flex: 0.7,
+    borderColor: '#ffcc00',
+  },
+  hubNavText: {
+    color: '#d8e6f4',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+  },
+  hubNavTextActive: {
+    color: '#0b0e14',
   },
   banner: {
     marginHorizontal: 14,

@@ -1,7 +1,7 @@
 // Pantalla de Inicio de Sesión en formato Horizontal (Landscape).
 // Conecta con POST /api/auth/login o inicia sesión en modo local de respaldo.
 import React, { useState } from 'react';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import {
   ActivityIndicator,
@@ -135,12 +135,13 @@ export default function LoginScreen() {
                 )}
               </Pressable>
 
-              <Link href="/register" asChild>
-                <Pressable style={styles.secondaryBtn}>
-                  <UserPlus size={14} color="#ffcc00" />
-                  <Text style={styles.secondaryBtnText}>REGISTRAR NUEVO AGENTE</Text>
-                </Pressable>
-              </Link>
+              <Pressable
+                onPress={() => router.push('/register')}
+                style={styles.secondaryBtn}
+              >
+                <UserPlus size={14} color="#ffcc00" />
+                <Text style={styles.secondaryBtnText}>REGISTRAR NUEVO AGENTE</Text>
+              </Pressable>
             </View>
           </View>
         </SafeAreaView>
