@@ -1,17 +1,17 @@
-// Conecta la pantalla de juego con el servidor (o con el motor local si es una sesión
-// de demostración, nivel local, co-op local, asalto PvP o prueba de base propia).
-// Además aplica las mejoras del Taller (Batería Máxima) y registra recompensas al terminar.
-import { useCallback, useEffect, useState } from 'react';
+// Conecta la pantalla de juego con el Backend y el Smartwatch Wear OS en tiempo real:
+// - En cada turno o movimiento del móvil, sincroniza el estado con el servidor (`session:sync`),
+//   lo cual actualiza al instante el Deck Táctico del Smartwatch (`watch:context`).
+// - Escucha en tiempo real las acciones ejecutadas en el Smartwatch (`watch:command`: hackeos
+//   resueltos en los 5 minijuegos y habilidades activadas desde la muñeca) y las aplica al tablero.
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_MISSIONS,
   loadPlayerProfile,
   recordMissionCompletion,
   type PlayerProfileState,
 } from '../lib/playerStore';
-import { connectSocket, getSocket } from '../lib/socket';
-import { getToken } from '../lib/tokenStorage';
+import { connectSocket, type WatchCommandPayload } from '../lib/socket';
 import type {
-  ApiError,
   Direction,
   GameEnded,
   GameEntity,
@@ -20,20 +20,14 @@ import type {
   SessionState,
 } from '../lib/types';
 import { mockLevel1State } from '../mocks/sessionState';
-import { mockMove, mockWait } from '../mocks/mockEngine';
+import {
+  applyWatchHackResolved,
+  applyWatchSkill,
+  mockMove,
+  mockWait,
+} from '../mocks/mockEngine';
 
 export const DEMO_SESSION_ID = 'demo';
-
-function isLocalSessionId(id: string): boolean {
-  return (
-    !id ||
-    id === 'demo' ||
-    id === 'test-base' ||
-    id.startsWith('level-') ||
-    id.startsWith('coop-') ||
-    id.startsWith('raid-')
-  );
-}
 
 function buildInitialLocalState(
   sessionId: string,
@@ -42,7 +36,6 @@ function buildInitialLocalState(
   const maxBattery =
     profile?.upgrades.battery === 3 ? 150 : profile?.upgrades.battery === 2 ? 125 : 100;
 
-  // Si está probando su propia base 10x10 del editor PvP:
   if (sessionId === 'test-base' && profile?.base) {
     const b = profile.base;
     let startX = 1;
@@ -138,7 +131,6 @@ function buildInitialLocalState(
     };
   }
 
-  // Configurar tema y nombre según el nivel o modo seleccionado
   let theme = mockLevel1State.theme;
   let roomName = mockLevel1State.roomName;
   let sessionType: SessionState['type'] = 'SOLO';
@@ -161,7 +153,7 @@ function buildInitialLocalState(
 
   return {
     ...mockLevel1State,
-    sessionId,
+    sessionId: sessionId || 'demo',
     type: sessionType,
     theme,
     roomName,
@@ -174,65 +166,95 @@ function buildInitialLocalState(
 }
 
 export function useGameSession(sessionId: string) {
-  const isDemo = isLocalSessionId(sessionId);
+  const isDemo = true;
+  const profileRef = useRef<PlayerProfileState | undefined>(undefined);
 
-  const [state, setState] = useState<SessionState | null>(
-    isDemo ? buildInitialLocalState(sessionId) : null,
+  const [state, setState] = useState<SessionState | null>(() =>
+    buildInitialLocalState(sessionId),
   );
   const [lastEvent, setLastEvent] = useState<GameEvent | null>(null);
   const [ended, setEnded] = useState<GameEnded | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
   const [transitioningRoom, setTransitioningRoom] = useState<string | null>(null);
 
-  // Cargar perfil del jugador para aplicar la mejora de batería máxima
+  // Cargar perfil del jugador al iniciar partida
   useEffect(() => {
-    if (!isDemo) return;
     loadPlayerProfile().then((prof) => {
+      profileRef.current = prof;
       setState(buildInitialLocalState(sessionId, prof));
     });
-  }, [isDemo, sessionId]);
+  }, [sessionId]);
 
-  // ----- Modo real: Socket.io -----
+  // Conectar Socket.io para sincronizar en tiempo real con el Smartwatch Wear OS
   useEffect(() => {
-    if (isDemo) return;
-    let cancelled = false;
+    const socket = connectSocket('nexo_mobile_jwt_1');
 
-    const onState = (s: SessionState) => setState(s);
-    const onEvent = (e: GameEvent) => setLastEvent(e);
-    const onEnded = (data: GameEnded) => setEnded(data);
-    const onError = (err: ApiError) => setError(err.message);
-    const join = () => getSocket()?.emit('session:join', { sessionId });
-
-    (async () => {
-      const token = await getToken();
-      if (cancelled) return;
-      if (!token) {
-        setError('Inicia sesión para jugar');
-        return;
+    const onWatchCommand = (cmd: WatchCommandPayload) => {
+      if (cmd.type === 'HACK_STARTED') {
+        setLastEvent({
+          type: 'SKILL_USED',
+          data: { message: `MINIJUEGO ACTIVO EN EL RELOJ (${cmd.minigame})` },
+        });
+      } else if (cmd.type === 'HACK_RESOLVED' && cmd.targetId) {
+        setState((prev) => {
+          if (!prev) return prev;
+          return applyWatchHackResolved(
+            prev,
+            cmd.targetId!,
+            !!cmd.success,
+            cmd.cost ?? 20,
+            (nextRoom) => {
+              setTransitioningRoom(nextRoom.roomName ?? 'NUEVO SECTOR');
+            },
+          );
+        });
+        setLastEvent({
+          type: cmd.success ? 'DOOR_OPENED' : 'DETECTED',
+          data: { targetId: cmd.targetId, success: cmd.success },
+        });
+      } else if (cmd.type === 'SKILL_ACTIVATED' && cmd.skill) {
+        setState((prev) => {
+          if (!prev) return prev;
+          return applyWatchSkill(prev, cmd.skill!, cmd.cost ?? 15);
+        });
+        setLastEvent({
+          type: 'SKILL_USED',
+          data: { skill: cmd.skill },
+        });
+      } else if (cmd.type === 'COOP_TRANSFER_BATTERY') {
+        setState((prev) => {
+          if (!prev) return prev;
+          const me = prev.players[0];
+          const nextBat = Math.min(me.maxBattery, me.battery + (cmd.amount ?? 25));
+          return {
+            ...prev,
+            players: [{ ...me, battery: nextBat }, ...prev.players.slice(1)],
+          };
+        });
       }
-      const socket = connectSocket(token);
-      socket.on('session:state', onState);
-      socket.on('game:event', onEvent);
-      socket.on('game:ended', onEnded);
-      socket.on('error', onError);
-      socket.on('connect', join);
-      if (socket.connected) join();
-    })();
+    };
+
+    socket.on('watch:command', onWatchCommand);
+    socket.emit('session:join', { sessionId: sessionId || 'demo' });
 
     return () => {
-      cancelled = true;
-      const socket = getSocket();
-      socket?.off('session:state', onState);
-      socket?.off('game:event', onEvent);
-      socket?.off('game:ended', onEnded);
-      socket?.off('error', onError);
-      socket?.off('connect', join);
+      socket.off('watch:command', onWatchCommand);
     };
-  }, [isDemo, sessionId]);
+  }, [sessionId]);
 
-  // ----- Modo local: simular el fin de la partida y guardar recompensas -----
+  // Emitir `session:sync` al Backend cada vez que cambia `state` para actualizar el Smartwatch
   useEffect(() => {
-    if (!isDemo || !state || ended) return;
+    if (!state) return;
+    const socket = connectSocket('nexo_mobile_jwt_1');
+    socket.emit('session:sync', {
+      state,
+      profile: profileRef.current,
+    });
+  }, [state]);
+
+  // Verificar fin de la partida y guardar recompensas
+  useEffect(() => {
+    if (!state || ended) return;
     if (state.status === 'WON') {
       const lv = sessionId.startsWith('level-')
         ? parseInt(sessionId.replace('level-', ''), 10) || 1
@@ -267,47 +289,37 @@ export function useGameSession(sessionId: string) {
         rewards,
       });
     }
-  }, [isDemo, state, ended, sessionId]);
+  }, [state, ended, sessionId]);
 
-  // ----- Intenciones del jugador -----
-  const move = useCallback(
-    (dir: Direction) => {
-      if (isDemo) {
-        setState((s) => {
-          if (!s) return s;
-          return mockMove(s, dir, (nextRoom) => {
-            setTransitioningRoom(nextRoom.roomName ?? 'NUEVO SECTOR');
-          });
-        });
-      } else {
-        getSocket()?.emit('game:move', { dir });
-      }
-    },
-    [isDemo],
-  );
+  const move = useCallback((dir: Direction) => {
+    setState((s) => {
+      if (!s) return s;
+      return mockMove(s, dir, (nextRoom) => {
+        setTransitioningRoom(nextRoom.roomName ?? 'NUEVO SECTOR');
+      });
+    });
+  }, []);
 
   const wait = useCallback(() => {
-    if (isDemo) setState((s) => (s ? mockWait(s) : s));
-    else getSocket()?.emit('game:wait', {});
-  }, [isDemo]);
+    setState((s) => (s ? mockWait(s) : s));
+  }, []);
 
   const leave = useCallback(() => {
-    if (!isDemo) getSocket()?.emit('session:leave', {});
-  }, [isDemo]);
+    connectSocket('nexo_mobile_jwt_1').emit('session:leave', {});
+  }, []);
 
   const clearTransition = useCallback(() => {
     setTransitioningRoom(null);
   }, []);
 
-  /** Reinicia la partida local actual. */
   const resetDemo = useCallback(() => {
-    if (!isDemo) return;
     loadPlayerProfile().then((prof) => {
+      profileRef.current = prof;
       setState(buildInitialLocalState(sessionId, prof));
       setEnded(null);
       setTransitioningRoom(null);
     });
-  }, [isDemo, sessionId]);
+  }, [sessionId]);
 
   return {
     state,

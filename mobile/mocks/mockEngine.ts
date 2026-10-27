@@ -280,3 +280,152 @@ export function mockWait(state: SessionState): SessionState {
   const updatedEntities = advanceGuardsAndCameras(state.entities, state.tiles, state.alert);
   return endTurn(state, updatedEntities);
 }
+
+/**
+ * Aplica en el tablero móvil el resultado del minijuego de hackeo resuelto en el Smartwatch.
+ */
+export function applyWatchHackResolved(
+  state: SessionState,
+  targetId: string,
+  success: boolean,
+  cost: number,
+  onRoomTransition?: (nextRoomState: SessionState) => void,
+): SessionState {
+  if (state.status !== 'PLAYING') return state;
+  const me = state.players[0];
+
+  if (!success) {
+    const nextAlert = Math.min(100, state.alert + 20);
+    return {
+      ...state,
+      alert: nextAlert,
+      status: nextAlert >= 100 ? 'LOST' : state.status,
+    };
+  }
+
+  let entities = [...state.entities];
+  const battery = Math.max(0, me.battery - cost);
+
+  const idx = entities.findIndex((e) => e.id === targetId);
+  if (idx >= 0) {
+    const target = entities[idx];
+    entities[idx] = { ...target, open: true };
+
+    if (target.type === 'terminal') {
+      entities = entities.map((e) =>
+        e.type === 'camera' ? { ...e, disabledTurns: 8, visionTiles: [] } : e,
+      );
+    }
+
+    if (target.type === 'door' && target.targetRoom && SECTOR_ROOMS[target.targetRoom]) {
+      const nextRoom = SECTOR_ROOMS[target.targetRoom];
+      const transitionedState: SessionState = {
+        ...nextRoom,
+        sessionId: state.sessionId,
+        alert: state.alert,
+        turn: state.turn + 1,
+        players: [
+          {
+            ...nextRoom.players[0],
+            battery,
+            maxBattery: me.maxBattery,
+            camouflageTurns: me.camouflageTurns,
+            x: target.targetX ?? nextRoom.players[0].x,
+            y: target.targetY ?? nextRoom.players[0].y,
+          },
+          ...nextRoom.players.slice(1),
+        ],
+      };
+      onRoomTransition?.(transitionedState);
+      return transitionedState;
+    }
+  }
+
+  return {
+    ...state,
+    entities,
+    players: [{ ...me, battery }, ...state.players.slice(1)],
+  };
+}
+
+/**
+ * Aplica en el tablero móvil una habilidad activada desde el Smartwatch Wear OS.
+ */
+export function applyWatchSkill(
+  state: SessionState,
+  skillCode: string,
+  cost: number,
+): SessionState {
+  if (state.status !== 'PLAYING') return state;
+  const me = state.players[0];
+  const battery = Math.max(0, me.battery - cost);
+  let camouflageTurns = me.camouflageTurns;
+  let entities = [...state.entities];
+  let revealedTraps = [...state.revealedTraps];
+
+  if (skillCode === 'SCANNER') {
+    for (const e of entities) {
+      if (e.type === 'trap' && Math.abs(e.x - me.x) + Math.abs(e.y - me.y) <= 3) {
+        if (!revealedTraps.some(([tx, ty]) => tx === e.x && ty === e.y)) {
+          revealedTraps.push([e.x, e.y]);
+        }
+      }
+    }
+  } else if (skillCode === 'SABOTAGE') {
+    let bestIdx = -1;
+    let bestDist = 999;
+    entities.forEach((e, i) => {
+      if (e.type === 'camera' && !e.disabledTurns) {
+        const d = Math.abs(e.x - me.x) + Math.abs(e.y - me.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+    });
+    if (bestIdx >= 0) {
+      entities[bestIdx] = { ...entities[bestIdx], disabledTurns: 3, visionTiles: [] };
+    }
+  } else if (skillCode === 'CAMOUFLAGE') {
+    camouflageTurns = Math.max(camouflageTurns, 2);
+  } else if (skillCode === 'OVERLOAD') {
+    entities = entities.filter(
+      (e) => !(e.type === 'trap' && Math.abs(e.x - me.x) + Math.abs(e.y - me.y) <= 4),
+    );
+  } else if (skillCode === 'EMP') {
+    let bestIdx = -1;
+    let bestDist = 999;
+    entities.forEach((e, i) => {
+      if ((e.type === 'guard' || e.type === 'drone') && !e.disabledTurns) {
+        const d = Math.abs(e.x - me.x) + Math.abs(e.y - me.y);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+    });
+    if (bestIdx >= 0) {
+      entities[bestIdx] = { ...entities[bestIdx], disabledTurns: 4, visionTiles: [] };
+    }
+  } else if (skillCode === 'THERMAL') {
+    for (const e of entities) {
+      if (e.type === 'trap' && !revealedTraps.some(([tx, ty]) => tx === e.x && ty === e.y)) {
+        revealedTraps.push([e.x, e.y]);
+      }
+    }
+  } else if (skillCode === 'TIMEDILATE') {
+    entities = entities.map((e) =>
+      e.type === 'guard' || e.type === 'camera' || e.type === 'drone'
+        ? { ...e, disabledTurns: 2, visionTiles: [] }
+        : e,
+    );
+  }
+
+  return {
+    ...state,
+    revealedTraps,
+    entities,
+    players: [{ ...me, battery, camouflageTurns }, ...state.players.slice(1)],
+  };
+}
+

@@ -1,0 +1,78 @@
+-- Esquema MySQL 8 para NEXO (docs/NEXO_Contexto_IA.md, sección 10)
+CREATE DATABASE IF NOT EXISTS nexo_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE nexo_db;
+
+CREATE TABLE IF NOT EXISTS players (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(30) NOT NULL UNIQUE,
+  email VARCHAR(120) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  credits INT NOT NULL DEFAULT 100,
+  energy INT NOT NULL DEFAULT 50,
+  intel INT NOT NULL DEFAULT 10,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS watch_devices (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  player_id INT NOT NULL,
+  device_name VARCHAR(80),
+  linked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at TIMESTAMP NULL,
+  FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS pairing_codes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  code CHAR(4) NOT NULL,
+  pairing_token CHAR(36) NOT NULL UNIQUE,
+  player_id INT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  claimed_at TIMESTAMP NULL,
+  INDEX (code),
+  FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS player_upgrades (
+  player_id INT PRIMARY KEY,
+  battery_level TINYINT NOT NULL DEFAULT 1,
+  cipher_level TINYINT NOT NULL DEFAULT 1,
+  efficiency_level TINYINT NOT NULL DEFAULT 1,
+  FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS player_skills (
+  player_id INT NOT NULL,
+  skill_code VARCHAR(20) NOT NULL,
+  equipped BOOLEAN NOT NULL DEFAULT FALSE,
+  unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (player_id, skill_code),
+  FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS missions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  level_number TINYINT NOT NULL UNIQUE,
+  name VARCHAR(80) NOT NULL,
+  theme VARCHAR(40) NOT NULL,
+  map_json JSON NOT NULL,
+  reward_credits INT NOT NULL,
+  reward_energy INT NOT NULL,
+  reward_intel INT NOT NULL,
+  unlocks_skill VARCHAR(20) NULL,
+  supports_coop BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE IF NOT EXISTS game_sessions (
+  id CHAR(36) PRIMARY KEY,
+  room_code VARCHAR(10) NULL UNIQUE,
+  type ENUM('SOLO','COOP','RAID') NOT NULL,
+  mission_id INT NULL,
+  base_id INT NULL,
+  status ENUM('WAITING','PLAYING','WON','LOST','ABANDONED') NOT NULL DEFAULT 'WAITING',
+  turn INT NOT NULL DEFAULT 0,
+  alert_level TINYINT NOT NULL DEFAULT 0,
+  state_json JSON NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  ended_at TIMESTAMP NULL
+);

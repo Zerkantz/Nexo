@@ -19,6 +19,7 @@ import {
   Watch,
 } from 'lucide-react-native';
 import { CommandHeader } from '../components/navigation/CommandHeader';
+import { api } from '../lib/api';
 import {
   DEFAULT_PROFILE_STATE,
   linkWatchWithCode,
@@ -27,29 +28,55 @@ import {
   unlinkWatch,
   type PlayerProfileState,
 } from '../lib/playerStore';
-import { getSocket } from '../lib/socket';
+import { connectSocket } from '../lib/socket';
 
 export default function PairWatchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ next?: string }>();
   const [profile, setProfile] = useState<PlayerProfileState>(DEFAULT_PROFILE_STATE);
   const [code, setCode] = useState('');
+  const [detectedWatchCode, setDetectedWatchCode] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     loadPlayerProfile().then(setProfile);
 
-    const socket = getSocket();
+    const socket = connectSocket('nexo_mobile_jwt_1');
     const onLinked = () => {
       loadPlayerProfile().then(setProfile);
+      setDetectedWatchCode(null);
       setFeedback({
         ok: true,
-        text: 'Evento pairing:linked recibido: Smartwatch sincronizado en tiempo real.',
+        text: 'Smartwatch Wear OS sincronizado en tiempo real con el servidor.',
       });
     };
-    socket?.on('pairing:linked', onLinked);
+    const onCodeRequested = (data: { code: string }) => {
+      if (data?.code) {
+        setDetectedWatchCode(data.code);
+      }
+    };
+    socket.on('pairing:linked', onLinked);
+    socket.on('pairing:code_requested', onCodeRequested);
+
+    const pollActive = () => {
+      api
+        .get<{ activeCode?: { code: string } | null }>('/pairing/active')
+        .then((r) => {
+          if (r.data?.activeCode?.code) {
+            setDetectedWatchCode(r.data.activeCode.code);
+          }
+        })
+        .catch(() => {
+          // Ignorar si el backend local aún no está levantado
+        });
+    };
+    pollActive();
+    const timer = setInterval(pollActive, 2500);
+
     return () => {
-      socket?.off('pairing:linked', onLinked);
+      clearInterval(timer);
+      socket.off('pairing:linked', onLinked);
+      socket.off('pairing:code_requested', onCodeRequested);
     };
   }, []);
 
@@ -212,6 +239,21 @@ export default function PairWatchScreen() {
         <View style={styles.rightPanel}>
           <Text style={styles.keypadKicker}>EMPAREJAMIENTO POR CÓDIGO TEMPORAL</Text>
           <Text style={styles.keypadTitle}>INGRESA LOS 4 DÍGITOS DEL RELOJ</Text>
+
+          {detectedWatchCode ? (
+            <Pressable
+              onPress={() => {
+                setCode(detectedWatchCode);
+                handleClaim(detectedWatchCode);
+              }}
+              style={styles.detectedWatchBtn}
+            >
+              <Watch size={13} color="#00E699" />
+              <Text style={styles.detectedWatchText}>
+                RELOJ DETECTADO ({detectedWatchCode}) · TOCA PARA VINCULAR
+              </Text>
+            </Pressable>
+          ) : null}
 
           <View style={styles.digitsRow}>
             {[0, 1, 2, 3].map((idx) => {
@@ -519,6 +561,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 1,
+  },
+  detectedWatchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    width: '100%',
+    backgroundColor: 'rgba(0, 230, 153, 0.14)',
+    borderWidth: 1.5,
+    borderColor: '#00E699',
+    borderRadius: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+  },
+  detectedWatchText: {
+    color: '#00E699',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.6,
   },
   digitsRow: {
     flexDirection: 'row',
