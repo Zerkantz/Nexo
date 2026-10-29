@@ -32,6 +32,7 @@ import {
   UPGRADE_CATALOG,
   type PlayerProfileState,
 } from '../lib/playerStore';
+import { upgradesApi } from '../lib/api';
 
 export default function WorkshopScreen() {
   const router = useRouter();
@@ -55,6 +56,11 @@ export default function WorkshopScreen() {
   };
 
   const handleGrantDemoResources = async () => {
+    try {
+      await upgradesApi.grantSupplies();
+    } catch {
+      // Respaldo local
+    }
     const next = await savePlayerProfile({
       ...profile,
       player: {
@@ -68,7 +74,7 @@ export default function WorkshopScreen() {
     setProfile(next);
     setStatusMsg({
       ok: true,
-      text: 'Suministros acreditados (+500 CR, +150 EN, +60 IN) y módulos desbloqueados.',
+      text: 'Suministros acreditados en MySQL (+500 CR, +150 EN, +60 IN) y modulos desbloqueados.',
     });
   };
 

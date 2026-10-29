@@ -2,8 +2,8 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { query, transaction } = require('../config/db');
-const { UPGRADES, MISSIONS } = require('../game/catalog');
-const { sanitizeBaseMap, defaultBaseMap, hasValidPath } = require('../game/bases');
+const { UPGRADE_COSTS, MISSIONS } = require('../game/catalog');
+const { sanitizeBaseMap, defaultBaseMap, validateBaseBFS } = require('../game/bases');
 const { signWatchToken } = require('../auth');
 
 function parseJsonSafe(val, fallback) {
@@ -369,8 +369,7 @@ async function buyUpgradeInDb(playerId, type) {
   const nextLevel = Math.min(3, currentLevel + 1);
 
   if (nextLevel > currentLevel) {
-    const levelSpec = UPGRADES[type]?.levels?.[nextLevel];
-    const cost = levelSpec?.cost || { credits: 0, energy: 0, intel: 0 };
+    const cost = UPGRADE_COSTS[type]?.[nextLevel] || { credits: 0, energy: 0, intel: 0 };
 
     await query(
       `UPDATE players
@@ -404,9 +403,39 @@ async function equipSkillsInDb(playerId, skills) {
   return getFullPlayerProfile(playerId);
 }
 
+async function grantDemoSuppliesInDb(playerId = 1) {
+  await query(
+    `UPDATE players
+     SET credits = credits + 500,
+         energy = energy + 150,
+         intel = intel + 60
+     WHERE id = ?`,
+    [playerId],
+  );
+  const allSkills = [
+    'SCANNER',
+    'SABOTAGE',
+    'CAMOUFLAGE',
+    'OVERLOAD',
+    'RADAR',
+    'EMP',
+    'THERMAL',
+    'TIMEDILATE',
+  ];
+  for (const code of allSkills) {
+    await query(
+      `INSERT IGNORE INTO player_skills (player_id, skill_code, equipped)
+       VALUES (?, ?, FALSE)`,
+      [playerId, code],
+    );
+  }
+  return getFullPlayerProfile(playerId);
+}
+
 async function savePlayerBaseInDb(playerId, { name, tiles, entities, isPublished = true }) {
   const cleanMap = sanitizeBaseMap({ tiles, entities }) || defaultBaseMap();
-  const validPath = hasValidPath(cleanMap);
+  const bfs = validateBaseBFS(cleanMap.tiles);
+  const validPath = Boolean(bfs?.valid);
   const cleanName = String(name || 'FORTALEZA NEXO-01').trim().slice(0, 40);
 
   await query(
@@ -555,6 +584,7 @@ module.exports = {
   unlinkWatchInDb,
   buyUpgradeInDb,
   equipSkillsInDb,
+  grantDemoSuppliesInDb,
   savePlayerBaseInDb,
   recordMissionResultInDb,
   getRaidTargetsFromDb,

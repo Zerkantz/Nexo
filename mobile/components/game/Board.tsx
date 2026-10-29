@@ -6,11 +6,12 @@
 // - Las casillas adyacentes caminables se indican en verde táctico (#00E699), diferenciadas
 //   claramente de los conos de visión de guardias (naranja) y cámaras (rojo).
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, withAlpha } from '../../theme/colors';
 import { Tile, type Direction, type GameEntity, type Point, type SessionPlayer, type SessionState } from '../../lib/types';
 import type { CharacterId } from '../../lib/characters';
 import { TILE_ASSETS } from '../../lib/environmentAssets';
+import { getNextObjectiveCoord } from '../../mocks/mockEngine';
 import { CharacterSprite } from './CharacterSprite';
 import { GuardSprite } from './GuardSprite';
 import { EntityIcon } from './EntityIcon';
@@ -211,13 +212,22 @@ export function Board({
 
   // Mapa rápido de casillas vigiladas para distinguir pasos seguros de pasos en visión enemiga
   const watchedSet = new Set<string>();
+  const nextStepSet = new Set<string>();
   for (const e of state.entities) {
     if (e.visionTiles && !e.disabledTurns) {
       for (const [vx, vy] of e.visionTiles) {
         watchedSet.add(`${vx},${vy}`);
       }
     }
+    if ((e.type === 'guard' || e.type === 'drone') && !e.disabledTurns && e.path && e.path.length > 0) {
+      const nextIdx = ((e.pathIndex ?? 0) + 1) % e.path.length;
+      const [nx, ny] = e.path[nextIdx];
+      nextStepSet.add(`${nx},${ny}`);
+    }
   }
+
+  const objectiveCoord = getNextObjectiveCoord(state, me);
+  const unhackedTerminals = state.entities.some((e) => e.type === 'terminal' && !e.open);
 
   const isWallAt = (tx: number, ty: number) => {
     if (tx < 0 || ty < 0 || tx >= state.width || ty >= state.height) return true;
@@ -353,11 +363,60 @@ export function Board({
       {/* 4. Entidades estáticas normales (cámaras, puertas, terminales, energía) */}
       {state.entities
         .filter((e) => e.type !== 'guard' && e.type !== 'drone' && !e.targetRoom)
-        .map((e) => (
-          <View key={e.id} pointerEvents="none" style={[styles.overlay, styles.center, at(e.x, e.y)]}>
-            <EntityIcon entity={e} size={iconSize} />
+        .map((e) => {
+          const isClosedDoor = e.type === 'door' && !e.open;
+          const isUnhackedTerm = e.type === 'terminal' && !e.open;
+          return (
+            <View
+              key={e.id}
+              pointerEvents="none"
+              style={[
+                styles.overlay,
+                styles.center,
+                at(e.x, e.y),
+                isClosedDoor && {
+                  borderWidth: 2,
+                  borderColor: unhackedTerminals ? '#ff4d6d' : '#ffcc00',
+                  backgroundColor: unhackedTerminals
+                    ? 'rgba(255, 77, 109, 0.18)'
+                    : 'rgba(255, 204, 0, 0.16)',
+                },
+                isUnhackedTerm && {
+                  borderWidth: 1.5,
+                  borderColor: '#00F0FF',
+                  backgroundColor: 'rgba(0, 240, 255, 0.14)',
+                },
+              ]}
+            >
+              <EntityIcon entity={e} size={iconSize} />
+            </View>
+          );
+        })}
+
+      {/* 4b. Indicador del siguiente paso de cada guardia/dron y marcador [OBJ] del objetivo actual */}
+      {Array.from(nextStepSet).map((coordKey) => {
+        const [sx, sy] = coordKey.split(',').map(Number);
+        return (
+          <View
+            key={`step-${coordKey}`}
+            pointerEvents="none"
+            style={[styles.overlay, styles.center, at(sx, sy)]}
+          >
+            <View style={styles.guardNextStepDot} />
           </View>
-        ))}
+        );
+      })}
+
+      {objectiveCoord && (
+        <View
+          pointerEvents="none"
+          style={[styles.overlay, styles.objectiveTargetBox, at(objectiveCoord.x, objectiveCoord.y)]}
+        >
+          <View style={styles.objectiveTagPill}>
+            <Text style={styles.objectiveTagText}>OBJ</Text>
+          </View>
+        </View>
+      )}
 
       {/* 5. Entidades móviles (Guardias con animación de caminata y deslizamiento) */}
       {state.entities
@@ -544,5 +603,34 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 8,
     elevation: 6,
+  },
+  guardNextStepDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 136, 0, 0.85)',
+    borderWidth: 1,
+    borderColor: '#ffffff',
+  },
+  objectiveTargetBox: {
+    borderWidth: 2,
+    borderColor: '#ffcc00',
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 204, 0, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  objectiveTagPill: {
+    backgroundColor: '#ffcc00',
+    paddingHorizontal: 3,
+    paddingVertical: 0.5,
+    borderRadius: 2,
+    marginTop: 1,
+  },
+  objectiveTagText: {
+    color: '#070a0f',
+    fontSize: 6.5,
+    fontWeight: '900',
+    letterSpacing: 0.4,
   },
 });

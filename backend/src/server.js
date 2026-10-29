@@ -27,6 +27,7 @@ const {
   unlinkWatchInDb,
   buyUpgradeInDb,
   equipSkillsInDb,
+  grantDemoSuppliesInDb,
   savePlayerBaseInDb,
   recordMissionResultInDb,
   getRaidTargetsFromDb,
@@ -518,6 +519,18 @@ app.post(
     res.json({
       ok: true,
       upgrades: playerProfile.upgrades,
+      player: playerProfile,
+    });
+  }),
+);
+
+app.post(
+  '/api/supplies/grant',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    playerProfile = await grantDemoSuppliesInDb(playerId);
+    res.json({
+      ok: true,
       player: playerProfile,
     });
   }),

@@ -1,13 +1,16 @@
 // Conecta la pantalla de juego con el Backend y el Smartwatch Wear OS en tiempo real:
-// - En cada turno o movimiento del móvil, sincroniza el estado con el servidor (`session:sync`),
-//   lo cual actualiza al instante el Deck Táctico del Smartwatch (`watch:context`).
+// - En cada turno o movimiento del movil, sincroniza el estado con el servidor (`session:sync`),
+//   lo cual actualiza al instante el Deck Tactico del Smartwatch (`watch:context`).
 // - Escucha en tiempo real las acciones ejecutadas en el Smartwatch (`watch:command`: hackeos
-//   resueltos en los 5 minijuegos y habilidades activadas desde la muñeca) y las aplica al tablero.
+//   resueltos en los 5 minijuegos y habilidades activadas desde la muneca) y las aplica al tablero.
+// - Expone tambien `activateSkill` y `feedback` para usar habilidades directamente en pantalla.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { SkillCode } from '../lib/api';
 import {
   DEFAULT_MISSIONS,
   loadPlayerProfile,
   recordMissionCompletion,
+  SKILL_CATALOG,
   type PlayerProfileState,
 } from '../lib/playerStore';
 import { connectSocket, type WatchCommandPayload } from '../lib/socket';
@@ -25,6 +28,7 @@ import {
   applyWatchSkill,
   mockMove,
   mockWait,
+  type TacticalFeedbackMessage,
 } from '../mocks/mockEngine';
 
 export const DEMO_SESSION_ID = 'demo';
@@ -144,7 +148,7 @@ function buildInitialLocalState(
     }
   } else if (sessionId.startsWith('coop-')) {
     sessionType = 'COOP';
-    roomName = `OPERACIÓN CO-OP // ${sessionId.replace('coop-', '').toUpperCase()}`;
+    roomName = `OPERACION CO-OP // ${sessionId.replace('coop-', '').toUpperCase()}`;
   } else if (sessionId.startsWith('raid-')) {
     sessionType = 'RAID';
     theme = 'SERVERS';
@@ -173,24 +177,41 @@ export function useGameSession(sessionId: string) {
     buildInitialLocalState(sessionId),
   );
   const [lastEvent, setLastEvent] = useState<GameEvent | null>(null);
+  const [feedback, setFeedback] = useState<TacticalFeedbackMessage | null>({
+    tone: 'info',
+    text: 'SIGUE EL MARCADOR [OBJ] AMARILLO: Recoge Energia (+35%), hackea las 2 Terminales (25% c/u) y abre la Compuerta.',
+  });
+  const [equippedSkills, setEquippedSkills] = useState<SkillCode[]>([
+    'SCANNER',
+    'SABOTAGE',
+    'CAMOUFLAGE',
+    'OVERLOAD',
+  ]);
+  const [efficiencyDiscount, setEfficiencyDiscount] = useState<number>(0);
   const [ended, setEnded] = useState<GameEnded | null>(null);
   const [error] = useState<string | null>(null);
   const [transitioningRoom, setTransitioningRoom] = useState<string | null>(null);
 
-  // Cargar perfil del jugador al iniciar partida
   useEffect(() => {
     loadPlayerProfile().then((prof) => {
       profileRef.current = prof;
+      setEquippedSkills(prof.equippedSkills);
+      setEfficiencyDiscount(
+        prof.upgrades.efficiency === 3 ? 10 : prof.upgrades.efficiency === 2 ? 5 : 0,
+      );
       setState(buildInitialLocalState(sessionId, prof));
     });
   }, [sessionId]);
 
-  // Conectar Socket.io para sincronizar en tiempo real con el Smartwatch Wear OS
   useEffect(() => {
     const socket = connectSocket('nexo_mobile_jwt_1');
 
     const onWatchCommand = (cmd: WatchCommandPayload) => {
       if (cmd.type === 'HACK_STARTED') {
+        setFeedback({
+          tone: 'info',
+          text: `MINIJUEGO ACTIVO EN EL RELOJ (${cmd.minigame})`,
+        });
         setLastEvent({
           type: 'SKILL_USED',
           data: { message: `MINIJUEGO ACTIVO EN EL RELOJ (${cmd.minigame})` },
@@ -206,6 +227,7 @@ export function useGameSession(sessionId: string) {
             (nextRoom) => {
               setTransitioningRoom(nextRoom.roomName ?? 'NUEVO SECTOR');
             },
+            (msg) => setFeedback(msg),
           );
         });
         setLastEvent({
@@ -215,7 +237,7 @@ export function useGameSession(sessionId: string) {
       } else if (cmd.type === 'SKILL_ACTIVATED' && cmd.skill) {
         setState((prev) => {
           if (!prev) return prev;
-          return applyWatchSkill(prev, cmd.skill!, cmd.cost ?? 15);
+          return applyWatchSkill(prev, cmd.skill!, cmd.cost ?? 15, (msg) => setFeedback(msg));
         });
         setLastEvent({
           type: 'SKILL_USED',
@@ -231,6 +253,10 @@ export function useGameSession(sessionId: string) {
             players: [{ ...me, battery: nextBat }, ...prev.players.slice(1)],
           };
         });
+        setFeedback({
+          tone: 'success',
+          text: 'TRANSFERENCIA COOPERATIVA RECIBIDA: +25% de Bateria.',
+        });
       }
     };
 
@@ -242,7 +268,6 @@ export function useGameSession(sessionId: string) {
     };
   }, [sessionId]);
 
-  // Emitir `session:sync` al Backend cada vez que cambia `state` para actualizar el Smartwatch
   useEffect(() => {
     if (!state) return;
     const socket = connectSocket('nexo_mobile_jwt_1');
@@ -252,7 +277,6 @@ export function useGameSession(sessionId: string) {
     });
   }, [state]);
 
-  // Verificar fin de la partida y guardar recompensas
   useEffect(() => {
     if (!state || ended) return;
     if (state.status === 'WON') {
@@ -294,15 +318,37 @@ export function useGameSession(sessionId: string) {
   const move = useCallback((dir: Direction) => {
     setState((s) => {
       if (!s) return s;
-      return mockMove(s, dir, (nextRoom) => {
-        setTransitioningRoom(nextRoom.roomName ?? 'NUEVO SECTOR');
-      });
+      return mockMove(
+        s,
+        dir,
+        (nextRoom) => {
+          setTransitioningRoom(nextRoom.roomName ?? 'NUEVO SECTOR');
+          setFeedback({
+            tone: 'info',
+            text: `INGRESANDO A ${nextRoom.roomName}: Hackea las 2 Terminales para desbloquear la Boveda Sur.`,
+          });
+        },
+        (msg) => setFeedback(msg),
+      );
     });
   }, []);
 
   const wait = useCallback(() => {
-    setState((s) => (s ? mockWait(s) : s));
+    setState((s) => (s ? mockWait(s, (msg) => setFeedback(msg)) : s));
   }, []);
+
+  const activateSkill = useCallback(
+    (code: SkillCode) => {
+      const def = SKILL_CATALOG.find((s) => s.code === code);
+      const baseCost = def?.cost ?? 20;
+      const finalCost = Math.max(5, baseCost - efficiencyDiscount);
+      setState((prev) => {
+        if (!prev) return prev;
+        return applyWatchSkill(prev, code, finalCost, (msg) => setFeedback(msg));
+      });
+    },
+    [efficiencyDiscount],
+  );
 
   const leave = useCallback(() => {
     connectSocket('nexo_mobile_jwt_1').emit('session:leave', {});
@@ -318,12 +364,19 @@ export function useGameSession(sessionId: string) {
       setState(buildInitialLocalState(sessionId, prof));
       setEnded(null);
       setTransitioningRoom(null);
+      setFeedback({
+        tone: 'info',
+        text: 'SECTOR REINICIADO: Sigue el marcador [OBJ] amarillo para recolectar Energia y hackear las Terminales.',
+      });
     });
   }, [sessionId]);
 
   return {
     state,
     lastEvent,
+    feedback,
+    equippedSkills,
+    efficiencyDiscount,
     ended,
     error,
     isDemo,
@@ -331,6 +384,7 @@ export function useGameSession(sessionId: string) {
     clearTransition,
     move,
     wait,
+    activateSkill,
     leave,
     resetDemo,
   };

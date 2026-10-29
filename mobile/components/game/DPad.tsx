@@ -11,7 +11,7 @@ interface Props {
   onWait: () => void;
 }
 
-const BTN = 54;
+const BTN = 48;
 
 interface ArrowProps {
   dir: Direction;

@@ -159,6 +159,7 @@ export const upgradesApi = {
   get: () => api.get('/upgrades').then((r) => r.data),
   buy: (type: UpgradeType) => api.post(`/upgrades/${type}/buy`).then((r) => r.data),
   equipSkills: (skills: SkillCode[]) => api.put('/skills/equip', { skills }).then((r) => r.data),
+  grantSupplies: () => api.post('/supplies/grant').then((r) => r.data),
 };
 
 export const baseApi = {

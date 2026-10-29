@@ -1,9 +1,9 @@
 // Pantalla de Juego en Formato Horizontal (Landscape) estilo 16-Bit:
-// - Columna Izquierda: Botón de PAUSA + Título del Sector arriba, HUD táctico al centro,
-//   y tarjeta de "AGENTE EN CAMPO" ubicada en la esquina inferior izquierda.
-// - Columna Central: Tablero 12x12 con estética 16-bit y elementos rediseñados.
-// - Columna Derecha: Cruceta de control ergonómica y leyenda visual.
-// - Menú de Pausa: Permite Reanudar, abrir el "Cómo Jugar" actualizado, Reiniciar o Salir al Inicio.
+// - Columna Izquierda: Boton de PAUSA + Boton (?) Manual + Titulo del Sector arriba, HUD tactico al centro,
+//   aviso de accion en vivo (`feedback`) y tarjeta de "AGENTE EN CAMPO" abajo.
+// - Columna Central: Tablero 12x12 con marcador [OBJ] del objetivo actual y prevision de patrullas.
+// - Columna Derecha: Cruceta de control (D-Pad), botones interactivos de Habilidades del Hacker Deck
+//   y leyenda visual compacta.
 import React, { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -20,7 +20,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BookOpen, Home, Pause, Play, RotateCcw, X } from 'lucide-react-native';
+import { BookOpen, CircleHelp, Home, Pause, Play, Radio, RotateCcw, X } from 'lucide-react-native';
 import { Board } from '../../components/game/Board';
 import { DPad } from '../../components/game/DPad';
 import { Hud } from '../../components/game/Hud';
@@ -30,6 +30,8 @@ import { HowToPlayGuide } from '../../components/tutorial/HowToPlayGuide';
 import { TipCard } from '../../components/tutorial/TipCard';
 import { useGameSession } from '../../hooks/useGameSession';
 import { useTutorial } from '../../hooks/useTutorial';
+import type { SkillCode } from '../../lib/api';
+import { SKILL_CATALOG } from '../../lib/playerStore';
 import { colors } from '../../theme/colors';
 import {
   CHARACTERS,
@@ -38,10 +40,24 @@ import {
   type CharacterId,
 } from '../../lib/characters';
 
+const SHORT_SKILL_LABELS: Record<SkillCode, string> = {
+  SCANNER: 'ESCANER',
+  SABOTAGE: 'SABOTAJE',
+  CAMOUFLAGE: 'CAMUFLAJE',
+  OVERLOAD: 'SOBRECARGA',
+  RADAR: 'RADAR',
+  EMP: 'PULSO PEM',
+  THERMAL: 'TERMICA',
+  TIMEDILATE: 'DILATAR',
+};
+
 export default function GameScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const {
     state,
+    feedback,
+    equippedSkills,
+    efficiencyDiscount,
     ended,
     error,
     isDemo,
@@ -49,6 +65,7 @@ export default function GameScreen() {
     clearTransition,
     move,
     wait,
+    activateSkill,
     leave,
     resetDemo,
   } = useGameSession(sessionId ?? '');
@@ -58,7 +75,6 @@ export default function GameScreen() {
   const [characterId, setCharacterId] = useState<CharacterId>('jesus');
   const [centerSize, setCenterSize] = useState<{ w: number; h: number } | null>(null);
 
-  // Cortina negra de entrada (disuelve desde el fade-to-black del selector de personaje)
   const entryFade = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -78,7 +94,7 @@ export default function GameScreen() {
     setPauseOpen(false);
     setGuideOpen(false);
     leave();
-    router.replace('/');
+    router.replace('/?menu=1' as any);
   };
 
   if (!state) {
@@ -97,7 +113,6 @@ export default function GameScreen() {
     );
   }
 
-  // Cálculo preciso del tamaño del tablero 12x12 para nunca invadir los paneles laterales
   const fallbackW = Math.max(200, width - 460);
   const fallbackH = Math.max(200, height - 20);
   const availW = centerSize ? Math.max(180, centerSize.w - 8) : fallbackW;
@@ -110,37 +125,71 @@ export default function GameScreen() {
     state.status === 'PLAYING' && !showingTip && !transitioningRoom && !pauseOpen && !guideOpen;
   const activeChar = CHARACTERS[characterId];
 
+  const feedbackColor =
+    feedback?.tone === 'danger'
+      ? '#ff4d6d'
+      : feedback?.tone === 'warn'
+        ? '#ffcc00'
+        : feedback?.tone === 'success'
+          ? '#00E699'
+          : '#00F0FF';
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar hidden />
       <View style={styles.landscapeLayout}>
-        {/* 1. Panel Izquierdo: PAUSA arriba, HUD al centro y AGENTE EN CAMPO en la esquina inferior izquierda */}
+        {/* 1. Panel Izquierdo: PAUSA + AYUDA arriba, HUD al centro, Feedback en vivo y AGENTE EN CAMPO */}
         <View style={styles.leftSidebar}>
-          {/* Fila superior: Botón de Pausa y Nombre del Sector */}
           <View style={styles.navRow}>
             <Pressable
               onPress={() => setPauseOpen(true)}
               style={styles.pauseBtn}
               accessibilityLabel="Pausar partida"
             >
-              <Pause size={16} color="#ffcc00" fill="#ffcc00" />
+              <Pause size={14} color="#ffcc00" fill="#ffcc00" />
               <Text style={styles.pauseBtnText}>PAUSA</Text>
             </Pressable>
+
+            <Pressable
+              onPress={() => setGuideOpen(true)}
+              style={styles.helpMiniBtn}
+              accessibilityLabel="Manual tactico"
+            >
+              <CircleHelp size={15} color="#00F0FF" />
+            </Pressable>
+
             <View style={styles.sectorBadge}>
               <Text style={styles.sectorLabel} numberOfLines={2}>
-                {state.roomName ?? 'BÓVEDA CENTRAL'}
+                {state.roomName ?? 'BOVEDA CENTRAL'}
               </Text>
             </View>
           </View>
 
-          {/* HUD de Turno, Energía, Alerta y Reloj */}
           <Hud state={state} me={me} />
 
-          {/* Esquina Inferior Izquierda: Tarjeta de AGENTE EN CAMPO */}
+          {/* Aviso tactico en tiempo real */}
+          {feedback ? (
+            <View
+              style={[
+                styles.liveFeedbackBox,
+                { borderColor: feedbackColor },
+              ]}
+            >
+              <Text
+                style={[styles.liveFeedbackText, { color: feedbackColor }]}
+                numberOfLines={3}
+              >
+                {feedback.text}
+              </Text>
+            </View>
+          ) : null}
+
           <View style={styles.agentBanner}>
             <Image source={getCharacterAvatar(characterId)} style={styles.agentAvatar} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.agentRoleTag}>AGENTE EN CAMPO</Text>
+              <Text style={styles.agentRoleTag}>
+                AGENTE · {me?.camouflageTurns ? `CAMUFLAJE (${me.camouflageTurns}T)` : 'ACTIVO'}
+              </Text>
               <Text style={styles.agentNameText}>{activeChar.name.toUpperCase()}</Text>
               <Text style={styles.agentAliasText} numberOfLines={1}>
                 {activeChar.role}
@@ -170,34 +219,80 @@ export default function GameScreen() {
           />
         </View>
 
-        {/* 3. Panel Derecho: Cruceta de Control (D-Pad) + Leyenda Intuitiva del Mapa */}
+        {/* 3. Panel Derecho: Cruceta (D-Pad) + Habilidades del Hacker Deck + Leyenda */}
         <View style={styles.rightSidebar}>
-          <Text style={styles.controlsLabel}>CONTROL TÁCTICO</Text>
+          <Text style={styles.controlsLabel}>CONTROL TACTICO</Text>
           <DPad accent="#ffb800" disabled={!canPlay} onMove={move} onWait={wait} />
 
-          {/* Leyenda rápida para entender el mapa al instante */}
+          {/* Barra interactiva de Habilidades del Hacker Deck */}
+          <View style={styles.deckBox}>
+            <View style={styles.deckHeader}>
+              <Radio size={11} color="#00F0FF" />
+              <Text style={styles.deckHeaderText}>HABILIDADES DECK</Text>
+            </View>
+            <View style={styles.deckGrid}>
+              {equippedSkills.slice(0, 4).map((code) => {
+                const def = SKILL_CATALOG.find((s) => s.code === code);
+                const cost = Math.max(5, (def?.cost ?? 20) - efficiencyDiscount);
+                const enoughBat = (me?.battery ?? 0) >= cost;
+                return (
+                  <Pressable
+                    key={code}
+                    disabled={!canPlay}
+                    onPress={() => activateSkill(code)}
+                    style={({ pressed }) => [
+                      styles.skillBtn,
+                      enoughBat ? styles.skillBtnReady : styles.skillBtnLowBat,
+                      pressed && styles.skillBtnPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.skillBtnLabel,
+                        { color: enoughBat ? '#ffffff' : '#6c7f93' },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {SHORT_SKILL_LABELS[code] ?? code}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.skillBtnCost,
+                        { color: enoughBat ? '#00F0FF' : '#ff4d6d' },
+                      ]}
+                    >
+                      {cost}% BAT
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Leyenda compacta en 2 columnas */}
           <View style={styles.legendBox}>
-            <View style={styles.legendRow}>
-              <View style={[styles.legendSwatch, { backgroundColor: '#00E699' }]} />
-              <Text style={styles.legendText}>Paso disponible</Text>
-            </View>
-            <View style={styles.legendRow}>
-              <View style={[styles.legendSwatch, { backgroundColor: '#FF8800' }]} />
-              <Text style={styles.legendText}>Visión de guardia</Text>
-            </View>
-            <View style={styles.legendRow}>
-              <View style={[styles.legendSwatch, { backgroundColor: '#FF2E4C' }]} />
-              <Text style={styles.legendText}>Visión de cámara</Text>
-            </View>
-            <View style={styles.legendRow}>
-              <View style={[styles.legendSwatch, { backgroundColor: '#BD00FF' }]} />
-              <Text style={styles.legendText}>Puerta a otro cuarto</Text>
+            <View style={styles.legendGrid}>
+              <View style={styles.legendRow}>
+                <View style={[styles.legendSwatch, { backgroundColor: '#ffcc00' }]} />
+                <Text style={styles.legendText}>[OBJ] Meta</Text>
+              </View>
+              <View style={styles.legendRow}>
+                <View style={[styles.legendSwatch, { backgroundColor: '#00E699' }]} />
+                <Text style={styles.legendText}>Paso libre</Text>
+              </View>
+              <View style={styles.legendRow}>
+                <View style={[styles.legendSwatch, { backgroundColor: '#FF8800' }]} />
+                <Text style={styles.legendText}>Guardia</Text>
+              </View>
+              <View style={styles.legendRow}>
+                <View style={[styles.legendSwatch, { backgroundColor: '#FF2E4C' }]} />
+                <Text style={styles.legendText}>Camara</Text>
+              </View>
             </View>
           </View>
         </View>
       </View>
 
-      {/* Carta flotante del tutorial cuando se activa una mecánica nueva */}
       {tutorial.current && (
         <View style={styles.tipOverlay}>
           <View style={styles.tipCardContainer}>
@@ -207,7 +302,7 @@ export default function GameScreen() {
               onNext={tutorial.dismiss}
               onSkip={tutorial.skipAll}
             />
-                    </View>
+          </View>
         </View>
       )}
 
@@ -222,7 +317,7 @@ export default function GameScreen() {
           <View style={styles.pauseCard}>
             <Text style={styles.pauseTitle}>PARTIDA EN PAUSA</Text>
             <Text style={styles.pauseSub}>
-              {state.roomName ?? 'OPERACIÓN ACTIVA'} · TURNO {state.turn}
+              {state.roomName ?? 'OPERACION ACTIVA'} · TURNO {state.turn}
             </Text>
 
             <View style={styles.pauseButtons}>
@@ -242,7 +337,7 @@ export default function GameScreen() {
                 }}
               >
                 <BookOpen size={18} color="#ffcc00" />
-                <Text style={styles.pauseActionText}>CÓMO JUGAR // MANUAL TÁCTICO</Text>
+                <Text style={styles.pauseActionText}>COMO JUGAR // MANUAL TACTICO</Text>
               </Pressable>
 
               {isDemo && (
@@ -264,7 +359,7 @@ export default function GameScreen() {
               >
                 <Home size={18} color="#ff4d6a" />
                 <Text style={[styles.pauseActionText, { color: '#ff6b82' }]}>
-                  SALIR AL INICIO
+                  SALIR AL MENU DE MODOS
                 </Text>
               </Pressable>
             </View>
@@ -272,22 +367,19 @@ export default function GameScreen() {
         </View>
       </Modal>
 
-      {/* Modal de victoria / derrota */}
       <ResultModal result={ended} onBack={exitToMainMenu} onRetry={isDemo ? resetDemo : undefined} />
 
-      {/* Animación de transición de cuarto */}
       <RoomTransitionOverlay
         visible={!!transitioningRoom}
         roomName={transitioningRoom ?? ''}
         onAnimationComplete={clearTransition}
       />
 
-      {/* Guía completa ("Cómo jugar" actualizado) en Modal */}
       <Modal visible={guideOpen} animationType="fade" onRequestClose={() => setGuideOpen(false)}>
         <SafeAreaView style={styles.guideModal}>
           <StatusBar hidden />
           <View style={styles.guideHeader}>
-            <Text style={styles.guideTitle}>MANUAL TÁCTICO // CÓMO JUGAR</Text>
+            <Text style={styles.guideTitle}>MANUAL TACTICO // COMO JUGAR</Text>
             <Pressable onPress={() => setGuideOpen(false)} style={styles.closeIconBtn}>
               <X size={20} color="#ffcc00" />
             </Pressable>
@@ -296,7 +388,6 @@ export default function GameScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Cortina negra de fundido inicial */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -331,61 +422,83 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    gap: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 12,
   },
   leftSidebar: {
-    width: 212,
+    width: 216,
     height: '100%',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 6,
   },
   navRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   pauseBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 7,
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 6,
     backgroundColor: '#18212d',
     borderWidth: 1.5,
     borderColor: '#ffcc00',
   },
   pauseBtnText: {
     color: '#ffcc00',
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
+  },
+  helpMiniBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 6,
+    backgroundColor: '#131d29',
+    borderWidth: 1.5,
+    borderColor: '#00F0FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectorBadge: {
     flex: 1,
   },
   sectorLabel: {
     color: '#e8f0f8',
-    fontSize: 10.5,
-    lineHeight: 13,
+    fontSize: 9.5,
+    lineHeight: 12,
     fontWeight: '900',
-    letterSpacing: 0.6,
+    letterSpacing: 0.4,
+  },
+  liveFeedbackBox: {
+    backgroundColor: '#0e151f',
+    borderWidth: 1.5,
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  liveFeedbackText: {
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '800',
   },
   agentBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: 8,
     backgroundColor: '#131a23',
     borderWidth: 1.5,
     borderColor: '#344456',
     borderRadius: 8,
-    padding: 8,
+    padding: 7,
   },
   agentAvatar: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     borderRadius: 6,
     borderWidth: 1.5,
     borderColor: '#ffb800',
@@ -393,19 +506,19 @@ const styles = StyleSheet.create({
   },
   agentRoleTag: {
     color: '#8899ad',
-    fontSize: 8,
+    fontSize: 7.5,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   agentNameText: {
     color: '#ffcc00',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
   agentAliasText: {
     color: '#b8c8d8',
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '600',
   },
   centerBoardArea: {
@@ -415,17 +528,74 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rightSidebar: {
-    width: 184,
+    width: 192,
     height: '100%',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 2,
+    gap: 4,
   },
   controlsLabel: {
     color: '#96a8bc',
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '900',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
+  },
+  deckBox: {
+    width: '100%',
+    backgroundColor: '#131a23',
+    borderWidth: 1.5,
+    borderColor: '#293a4d',
+    borderRadius: 7,
+    padding: 6,
+    gap: 4,
+  },
+  deckHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  deckHeaderText: {
+    color: '#00F0FF',
+    fontSize: 8.5,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  deckGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    justifyContent: 'space-between',
+  },
+  skillBtn: {
+    width: '48.5%',
+    borderRadius: 5,
+    borderWidth: 1.5,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    backgroundColor: '#0c121a',
+  },
+  skillBtnReady: {
+    borderColor: '#00F0FF',
+    backgroundColor: 'rgba(0, 240, 255, 0.1)',
+  },
+  skillBtnLowBat: {
+    borderColor: '#2a3746',
+    opacity: 0.65,
+  },
+  skillBtnPressed: {
+    transform: [{ scale: 0.96 }],
+  },
+  skillBtnLabel: {
+    fontSize: 8.5,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  skillBtnCost: {
+    fontSize: 7.5,
+    fontWeight: '900',
   },
   legendBox: {
     width: '100%',
@@ -433,23 +603,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a3748',
     borderRadius: 7,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+  },
+  legendGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: 3,
   },
   legendRow: {
+    width: '50%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 5,
   },
   legendSwatch: {
-    width: 9,
-    height: 9,
+    width: 8,
+    height: 8,
     borderRadius: 2,
   },
   legendText: {
     color: '#b8c8d8',
-    fontSize: 9.5,
+    fontSize: 8.5,
     fontWeight: '700',
   },
   tipOverlay: {
