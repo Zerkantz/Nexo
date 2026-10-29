@@ -1,7 +1,7 @@
-// Pantalla de Modo Online en formato Horizontal (Landscape):
-// - Pestaña 1: Cooperativo de 2 jugadores (crear sala NX-XXXX o unirse con código).
-// - Pestaña 2: Asaltos PvP asíncronos a bases personalizadas de otros agentes (botín 30%).
-// - Pestaña 3: Reportes de defensa de tu propia base.
+// Pantalla de Modo Online simplificada y suave (Landscape):
+// - Cooperativo (2 jugadores): crear sala o unirse con código de forma directa.
+// - Asaltar Bases: lista limpia de bases de otros jugadores y el botín disponible.
+// - Defensas: historial claro de incursiones recibidas en tu base.
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -20,7 +20,6 @@ import {
   FileWarning,
   Play,
   Plus,
-  Radio,
   ShieldAlert,
   Swords,
   Users,
@@ -43,9 +42,8 @@ export default function OnlineScreen() {
 
   // Estado de Sala Co-op
   const [selectedMissionId, setSelectedMissionId] = useState<number>(1);
-  const [activeRoomCode, setActiveRoomCode] = useState<string | null>('NX-4821');
+  const [activeRoomCode, setActiveRoomCode] = useState<string>('NX-4821');
   const [joinInput, setJoinInput] = useState('');
-  const [partnerReady, setPartnerReady] = useState(true);
   const [statusNote, setStatusNote] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,21 +54,19 @@ export default function OnlineScreen() {
     try {
       const res = await sessionApi.createCoopRoom(selectedMissionId);
       setActiveRoomCode(res.roomCode);
-      setPartnerReady(true);
-      setStatusNote(`Sala cooperativa ${res.roomCode} creada en el servidor.`);
+      setStatusNote(`Sala ${res.roomCode} creada.`);
     } catch {
       const randomNum = Math.floor(1000 + Math.random() * 9000);
       const code = `NX-${randomNum}`;
       setActiveRoomCode(code);
-      setPartnerReady(true);
-      setStatusNote(`Sala cooperativa ${code} abierta (lista para emparejar).`);
+      setStatusNote(`Sala ${code} lista para compartir.`);
     }
   };
 
   const handleJoinCoopRoom = async () => {
     const clean = joinInput.trim().toUpperCase();
     if (!clean) {
-      setStatusNote('Escribe un código de sala válido (ej. NX-4821 o 4821).');
+      setStatusNote('Ingresa un código de sala (ej. NX-4821).');
       return;
     }
     const formatted = clean.startsWith('NX-') ? clean : `NX-${clean}`;
@@ -80,13 +76,12 @@ export default function OnlineScreen() {
       // Continuar en modo local
     }
     setActiveRoomCode(formatted);
-    setPartnerReady(true);
     setJoinInput('');
-    setStatusNote(`Unido correctamente a la sala ${formatted}.`);
+    setStatusNote(`Conectado a la sala ${formatted}.`);
   };
 
   const handleStartCoopGame = () => {
-    const codeSlug = (activeRoomCode ?? 'NX-4821').toLowerCase();
+    const codeSlug = activeRoomCode.toLowerCase();
     router.push(`/character-select?next=/game/coop-${codeSlug}` as any);
   };
 
@@ -103,8 +98,7 @@ export default function OnlineScreen() {
     <SafeAreaView style={styles.root}>
       <StatusBar hidden />
       <CommandHeader
-        title="MODO ONLINE // CO-OP Y ASALTOS PvP"
-        subtitle="OPERACIONES CON RELOJ VINCULADO EN ESCUADRÓN E INCURSIONES"
+        title="Modo Online"
         player={profile.player}
         watch={profile.watch}
         backTo="/?menu=1"
@@ -113,259 +107,216 @@ export default function OnlineScreen() {
       {!profile.watch ? (
         <View style={styles.watchGateContainer}>
           <View style={styles.watchGateCard}>
-            <Watch size={36} color="#FF8800" />
-            <Text style={styles.watchGateKicker}>ACCESO RESTRINGIDO // PROTOCOLO NEXO</Text>
-            <Text style={styles.watchGateTitle}>DEBES ENLAZAR TU RELOJ PARA JUGAR ONLINE</Text>
+            <View style={styles.watchIconCircle}>
+              <Watch size={32} color="#FF9E44" />
+            </View>
+            <Text style={styles.watchGateTitle}>Enlaza tu reloj para jugar Online</Text>
             <Text style={styles.watchGateDesc}>
-              Las partidas Cooperativas (4 dispositivos) y los Asaltos PvP requieren que tu
-              Smartwatch Wear OS esté vinculado mediante el código de 4 dígitos.
+              El modo cooperativo y los asaltos requieren que tu Smartwatch esté vinculado.
             </Text>
             <Pressable
               onPress={() => router.replace('/pair?next=/online' as any)}
               style={styles.watchGateBtn}
             >
-              <Watch size={16} color="#ffffff" />
-              <Text style={styles.watchGateBtnText}>ENLAZAR RELOJ AHORA</Text>
+              <Watch size={16} color="#090d14" />
+              <Text style={styles.watchGateBtnText}>Enlazar Reloj</Text>
             </Pressable>
           </View>
         </View>
       ) : (
         <>
+          {/* Barra superior de pestañas limpia */}
+          <View style={styles.topBar}>
+            <View style={styles.tabsRow}>
+              <Pressable
+                onPress={() => setTab('COOP')}
+                style={[styles.tabBtn, tab === 'COOP' && styles.tabBtnActive]}
+              >
+                <Users size={15} color={tab === 'COOP' ? '#090d14' : '#94a3b8'} />
+                <Text style={[styles.tabBtnText, tab === 'COOP' && styles.tabBtnTextActive]}>
+                  Cooperativo
+                </Text>
+              </Pressable>
 
-      {/* Selector de sub-sección */}
-      <View style={styles.subTabsBar}>
-        <Pressable
-          onPress={() => setTab('COOP')}
-          style={[styles.subTab, tab === 'COOP' && styles.subTabActive]}
-        >
-          <Users size={13} color={tab === 'COOP' ? '#0b0e14' : '#ffcc00'} />
-          <Text style={[styles.subTabText, tab === 'COOP' && styles.subTabTextActive]}>
-            COOPERATIVO (2 JUGADORES)
-          </Text>
-        </Pressable>
+              <Pressable
+                onPress={() => setTab('RAIDS')}
+                style={[styles.tabBtn, tab === 'RAIDS' && styles.tabBtnActive]}
+              >
+                <Swords size={15} color={tab === 'RAIDS' ? '#090d14' : '#94a3b8'} />
+                <Text style={[styles.tabBtnText, tab === 'RAIDS' && styles.tabBtnTextActive]}>
+                  Asaltar Bases ({profile.raidTargets.length})
+                </Text>
+              </Pressable>
 
-        <Pressable
-          onPress={() => setTab('RAIDS')}
-          style={[styles.subTab, tab === 'RAIDS' && styles.subTabActive]}
-        >
-          <Swords size={13} color={tab === 'RAIDS' ? '#0b0e14' : '#00F0FF'} />
-          <Text style={[styles.subTabText, tab === 'RAIDS' && styles.subTabTextActive]}>
-            ASALTAR BASES PvP ({profile.raidTargets.length})
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => setTab('REPORTS')}
-          style={[styles.subTab, tab === 'REPORTS' && styles.subTabActive]}
-        >
-          <FileWarning size={13} color={tab === 'REPORTS' ? '#0b0e14' : '#FF8800'} />
-          <Text style={[styles.subTabText, tab === 'REPORTS' && styles.subTabTextActive]}>
-            REPORTES DE DEFENSA ({profile.raidReports.length})
-          </Text>
-        </Pressable>
-      </View>
-
-      {statusNote ? (
-        <View style={styles.statusBanner}>
-          <Text style={styles.statusBannerText}>{statusNote}</Text>
-        </View>
-      ) : null}
-
-      {/* CONTENIDO PESTAÑA 1: CO-OP */}
-      {tab === 'COOP' ? (
-        <View style={styles.coopContainer}>
-          {/* Izquierda: Crear o Unirse a Sala */}
-          <View style={styles.coopLeft}>
-            <View style={styles.panelCard}>
-              <Text style={styles.cardKicker}>ANFITRIÓN DE OPERACIÓN</Text>
-              <Text style={styles.cardTitle}>CREAR SALA COOPERATIVA</Text>
-              <Text style={styles.cardSub}>
-                Elige el distrito objetivo y comparte el código NX con tu compañero:
-              </Text>
-
-              <View style={styles.missionChipsRow}>
-                {profile.missions.map((m) => (
-                  <Pressable
-                    key={m.id}
-                    onPress={() => setSelectedMissionId(m.id)}
-                    style={[
-                      styles.missionChip,
-                      selectedMissionId === m.id && styles.missionChipActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.missionChipText,
-                        selectedMissionId === m.id && styles.missionChipTextActive,
-                      ]}
-                    >
-                      NV.{m.levelNumber}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Pressable onPress={handleCreateCoopRoom} style={styles.primaryActionBtn}>
-                <Plus size={14} color="#ffffff" />
-                <Text style={styles.primaryActionText}>GENERAR NUEVO CÓDIGO DE SALA</Text>
+              <Pressable
+                onPress={() => setTab('REPORTS')}
+                style={[styles.tabBtn, tab === 'REPORTS' && styles.tabBtnActive]}
+              >
+                <FileWarning size={15} color={tab === 'REPORTS' ? '#090d14' : '#94a3b8'} />
+                <Text style={[styles.tabBtnText, tab === 'REPORTS' && styles.tabBtnTextActive]}>
+                  Defensas ({profile.raidReports.length})
+                </Text>
               </Pressable>
             </View>
 
-            <View style={styles.panelCard}>
-              <Text style={styles.cardKicker}>UNIRSE A ESCUADRÓN</Text>
-              <Text style={styles.cardTitle}>INGRESAR CÓDIGO DE COMPAÑERO</Text>
-              <View style={styles.joinRow}>
-                <TextInput
-                  value={joinInput}
-                  onChangeText={setJoinInput}
-                  autoCapitalize="characters"
-                  placeholder="EJ. NX-4821"
-                  placeholderTextColor="#5c7085"
-                  style={styles.joinInput}
-                />
-                <Pressable onPress={handleJoinCoopRoom} style={styles.joinBtn}>
-                  <Text style={styles.joinBtnText}>CONECTAR</Text>
+            {statusNote ? <Text style={styles.statusToast}>{statusNote}</Text> : null}
+          </View>
+
+          {/* PESTAÑA 1: COOPERATIVO */}
+          {tab === 'COOP' ? (
+            <View style={styles.coopContainer}>
+              {/* Izquierda: Crear o Unirse */}
+              <View style={styles.coopLeft}>
+                <View style={styles.softCard}>
+                  <Text style={styles.cardTitle}>Crear Sala</Text>
+                  <Text style={styles.cardHint}>Elige el nivel para jugar en pareja:</Text>
+
+                  <View style={styles.missionChipsRow}>
+                    {profile.missions.map((m) => {
+                      const active = selectedMissionId === m.id;
+                      return (
+                        <Pressable
+                          key={m.id}
+                          onPress={() => setSelectedMissionId(m.id)}
+                          style={[styles.missionChip, active && styles.missionChipActive]}
+                        >
+                          <Text
+                            style={[
+                              styles.missionChipText,
+                              active && styles.missionChipTextActive,
+                            ]}
+                          >
+                            Nv.{m.levelNumber}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <Pressable onPress={handleCreateCoopRoom} style={styles.secondaryBtn}>
+                    <Plus size={14} color="#00F0FF" />
+                    <Text style={styles.secondaryBtnText}>Generar nuevo código</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.softCard}>
+                  <Text style={styles.cardTitle}>Unirse con Código</Text>
+                  <View style={styles.joinRow}>
+                    <TextInput
+                      value={joinInput}
+                      onChangeText={setJoinInput}
+                      autoCapitalize="characters"
+                      placeholder="Ej. NX-4821"
+                      placeholderTextColor="#64748b"
+                      style={styles.joinInput}
+                    />
+                    <Pressable onPress={handleJoinCoopRoom} style={styles.joinBtn}>
+                      <Text style={styles.joinBtnText}>Unirse</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+
+              {/* Derecha: Sala Activa */}
+              <View style={styles.coopRight}>
+                <View style={styles.roomTop}>
+                  <View>
+                    <Text style={styles.roomLabel}>Código de Sala</Text>
+                    <Text style={styles.roomCodeText}>{activeRoomCode}</Text>
+                  </View>
+                  <View style={styles.readyBadge}>
+                    <Watch size={13} color="#00E699" />
+                    <Text style={styles.readyBadgeText}>Relojes Sincronizados</Text>
+                  </View>
+                </View>
+
+                <View style={styles.slotsRow}>
+                  <View style={styles.slotBox}>
+                    <Text style={styles.slotLabel}>Jugador 1</Text>
+                    <Text style={styles.slotName}>{profile.player.username}</Text>
+                    <Text style={styles.slotSub}>{profile.watch.deviceName}</Text>
+                  </View>
+
+                  <View style={styles.slotBox}>
+                    <Text style={[styles.slotLabel, { color: '#00F0FF' }]}>Jugador 2</Text>
+                    <Text style={styles.slotName}>AGENTE_VEX</Text>
+                    <Text style={styles.slotSub}>Conectado y listo</Text>
+                  </View>
+                </View>
+
+                <Pressable onPress={handleStartCoopGame} style={styles.startCoopBtn}>
+                  <Play size={16} color="#090d14" fill="#090d14" />
+                  <Text style={styles.startCoopBtnText}>
+                    Iniciar Partida en Nivel {selectedMissionId}
+                  </Text>
                 </Pressable>
               </View>
             </View>
-          </View>
+          ) : null}
 
-          {/* Derecha: Lobby Activo de 4 Dispositivos */}
-          <View style={styles.coopRight}>
-            <View style={styles.roomHeader}>
-              <View>
-                <Text style={styles.roomKicker}>SALA DE SINCRONIZACIÓN TÁCTICA</Text>
-                <Text style={styles.roomCodeText}>{activeRoomCode ?? 'SIN SALA'}</Text>
-              </View>
-              <View style={styles.fourDevicesBadge}>
-                <Watch size={12} color="#00E699" />
-                <Text style={styles.fourDevicesText}>2 MÓVILES + 2 RELOJES LISTOS</Text>
-              </View>
-            </View>
-
-            <View style={styles.slotsRow}>
-              <View style={styles.slotBox}>
-                <Text style={styles.slotTag}>AGENTE 1 (ANFITRIÓN)</Text>
-                <Text style={styles.slotName}>{profile.player.username}</Text>
-                <Text style={styles.slotWatch}>
-                  {profile.watch ? profile.watch.deviceName : 'Wear OS Deck #1 Conectado'}
-                </Text>
-              </View>
-
-              <View style={styles.slotBox}>
-                <Text style={[styles.slotTag, { color: '#00F0FF' }]}>AGENTE 2 (COMPAÑERO)</Text>
-                <Text style={styles.slotName}>
-                  {partnerReady ? 'AGENTE_VEX (CONECTADO)' : 'ESPERANDO AGENTE...'}
-                </Text>
-                <Text style={styles.slotWatch}>Wear OS Deck #2 · Sincronizado</Text>
-              </View>
-            </View>
-
-            <View style={styles.coopRulesBox}>
-              <View style={styles.coopRuleItem}>
-                <Radio size={11} color="#ffcc00" />
-                <Text style={styles.coopRuleText}>
-                  Cerrojo Dual: hackeo simultáneo en ambos relojes (ventana máxima de 5 s).
-                </Text>
-              </View>
-              <View style={styles.coopRuleItem}>
-                <Radio size={11} color="#00F0FF" />
-                <Text style={styles.coopRuleText}>
-                  Alerta compartida · Transferencia de 25% de batería · Pings hápticos.
-                </Text>
-              </View>
-            </View>
-
-            <Pressable onPress={handleStartCoopGame} style={styles.deployCoopBtn}>
-              <Play size={15} color="#ffffff" fill="#ffffff" />
-              <Text style={styles.deployCoopText}>
-                DESPLEGAR ESCUADRÓN EN NIVEL {selectedMissionId}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
-
-      {/* CONTENIDO PESTAÑA 2: ASALTOS PvP */}
-      {tab === 'RAIDS' ? (
-        <ScrollView contentContainerStyle={styles.listContainer}>
-          {profile.raidTargets.map((target) => {
-            const lootAmount = Math.floor(target.vaultCredits * 0.3);
-            return (
-              <View key={target.id} style={styles.raidCard}>
-                <View style={styles.raidInfo}>
-                  <Text style={styles.raidOwner}>ARQUITECTO: {target.ownerUsername}</Text>
-                  <Text style={styles.raidBaseName}>{target.baseName}</Text>
-                  <Text style={styles.raidSecurity}>{target.securityRating}</Text>
-                </View>
-
-                <View style={styles.raidStats}>
-                  <View style={styles.lootBox}>
-                    <Text style={styles.lootLabel}>BOTÍN ROBABLE (30% DE BÓVEDA)</Text>
-                    <View style={styles.lootValueRow}>
-                      <Coins size={14} color="#FFD700" />
-                      <Text style={styles.lootValue}>+{lootAmount} CRÉDITOS</Text>
+          {/* PESTAÑA 2: ASALTAR BASES */}
+          {tab === 'RAIDS' ? (
+            <ScrollView contentContainerStyle={styles.listContainer}>
+              {profile.raidTargets.map((target) => {
+                const lootAmount = Math.floor(target.vaultCredits * 0.3);
+                return (
+                  <View key={target.id} style={styles.raidCard}>
+                    <View style={styles.raidInfo}>
+                      <Text style={styles.raidBaseName}>{target.baseName}</Text>
+                      <Text style={styles.raidSub}>
+                        De {target.ownerUsername} · {target.securityRating}
+                      </Text>
                     </View>
+
+                    <View style={styles.lootBadge}>
+                      <Coins size={15} color="#FFD700" />
+                      <Text style={styles.lootValue}>+{lootAmount} CR</Text>
+                    </View>
+
+                    <Pressable
+                      onPress={() => handleStartRaid(target.id)}
+                      style={styles.raidBtn}
+                    >
+                      <Swords size={15} color="#090d14" />
+                      <Text style={styles.raidBtnText}>Asaltar</Text>
+                    </Pressable>
                   </View>
-                  <Text style={styles.raidHistoryText}>
-                    Asaltada {target.timesRaided} veces · Defendida {target.timesDefended}
+                );
+              })}
+            </ScrollView>
+          ) : null}
+
+          {/* PESTAÑA 3: DEFENSAS */}
+          {tab === 'REPORTS' ? (
+            <ScrollView contentContainerStyle={styles.listContainer}>
+              {profile.raidReports.map((rep) => (
+                <View key={rep.id} style={styles.reportCard}>
+                  {rep.success ? (
+                    <ShieldAlert size={20} color="#ff5c7c" />
+                  ) : (
+                    <CheckCircle2 size={20} color="#00E699" />
+                  )}
+
+                  <View style={styles.reportBody}>
+                    <Text style={styles.reportTitle}>
+                      {rep.attackerUsername} —{' '}
+                      {rep.success ? 'Robó recursos de tu base' : 'Fue detenido por tus defensas'}
+                    </Text>
+                    <Text style={styles.reportTime}>{rep.createdAt}</Text>
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.reportDelta,
+                      { color: rep.success ? '#ff5c7c' : '#00E699' },
+                    ]}
+                  >
+                    {rep.success ? `-${rep.creditsStolen} CR` : 'Defendida'}
                   </Text>
                 </View>
-
-                <Pressable
-                  onPress={() => handleStartRaid(target.id)}
-                  style={styles.raidBtn}
-                >
-                  <Swords size={15} color="#ffffff" />
-                  <Text style={styles.raidBtnText}>ASALTAR BASE</Text>
-                </Pressable>
-              </View>
-            );
-          })}
-        </ScrollView>
-      ) : null}
-
-      {/* CONTENIDO PESTAÑA 3: REPORTES DE DEFENSA */}
-      {tab === 'REPORTS' ? (
-        <ScrollView contentContainerStyle={styles.listContainer}>
-          {profile.raidReports.map((rep) => (
-            <View
-              key={rep.id}
-              style={[
-                styles.reportCard,
-                rep.success ? styles.reportCardLost : styles.reportCardDefended,
-              ]}
-            >
-              <View style={styles.reportIconCol}>
-                {rep.success ? (
-                  <ShieldAlert size={22} color="#ff4d6d" />
-                ) : (
-                  <CheckCircle2 size={22} color="#00E699" />
-                )}
-              </View>
-
-              <View style={styles.reportBody}>
-                <Text style={styles.reportTitle}>
-                  ATACANTE: {rep.attackerUsername} —{' '}
-                  {rep.success ? 'INFILTRACIÓN EXITOSA' : 'INTRUSO NEUTRALIZADO'}
-                </Text>
-                <Text style={styles.reportTime}>{rep.createdAt}</Text>
-              </View>
-
-              <View style={styles.reportRight}>
-                <Text
-                  style={[
-                    styles.reportDelta,
-                    { color: rep.success ? '#ff4d6d' : '#00E699' },
-                  ]}
-                >
-                  {rep.success ? `-${rep.creditsStolen} CR ROBADOS` : '0 CR PERDIDOS'}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
-      ) : null}
+              ))}
+            </ScrollView>
+          ) : null}
         </>
       )}
     </SafeAreaView>
@@ -375,7 +326,7 @@ export default function OnlineScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#070a0f',
+    backgroundColor: '#090d14',
   },
   watchGateContainer: {
     flex: 1,
@@ -384,172 +335,160 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   watchGateCard: {
-    maxWidth: 440,
-    backgroundColor: '#101722',
-    borderWidth: 2,
-    borderColor: '#FF8800',
-    borderRadius: 12,
-    padding: 20,
+    maxWidth: 420,
+    backgroundColor: '#111926',
+    borderWidth: 1,
+    borderColor: '#253348',
+    borderRadius: 16,
+    padding: 24,
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
-  watchGateKicker: {
-    color: '#FF8800',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.4,
+  watchIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 158, 68, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   watchGateTitle: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: 17,
+    fontWeight: '800',
     textAlign: 'center',
   },
   watchGateDesc: {
-    color: '#9db1c6',
-    fontSize: 11,
-    lineHeight: 16,
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 19,
     textAlign: 'center',
   },
   watchGateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#d83800',
-    borderWidth: 2,
-    borderColor: '#ffcc00',
-    borderRadius: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    backgroundColor: '#00E699',
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
     marginTop: 4,
   },
   watchGateBtnText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1,
+    color: '#090d14',
+    fontSize: 13,
+    fontWeight: '800',
   },
-  subTabsBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    gap: 8,
-  },
-  subTab: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#101722',
-    borderWidth: 1.5,
-    borderColor: '#273648',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 4,
   },
-  subTabActive: {
-    backgroundColor: '#ffcc00',
-    borderColor: '#ffffff',
+  tabsRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
-  subTabText: {
-    color: '#d6e4f2',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  subTabTextActive: {
-    color: '#0b0e14',
-  },
-  statusBanner: {
-    marginHorizontal: 14,
-    marginTop: 6,
-    backgroundColor: 'rgba(0, 240, 255, 0.12)',
+  tabBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: '#111926',
     borderWidth: 1,
-    borderColor: '#00F0FF',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderColor: '#223044',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
-  statusBannerText: {
-    color: '#00F0FF',
-    fontSize: 10,
+  tabBtnActive: {
+    backgroundColor: '#00F0FF',
+    borderColor: '#00F0FF',
+  },
+  tabBtnText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  tabBtnTextActive: {
+    color: '#090d14',
     fontWeight: '800',
+  },
+  statusToast: {
+    color: '#00E699',
+    fontSize: 12,
+    fontWeight: '700',
   },
   coopContainer: {
     flex: 1,
     flexDirection: 'row',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    gap: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    gap: 16,
   },
   coopLeft: {
     width: '44%',
-    justifyContent: 'space-between',
-    gap: 8,
+    gap: 12,
   },
-  panelCard: {
+  softCard: {
     flex: 1,
-    backgroundColor: '#101722',
-    borderWidth: 1.5,
-    borderColor: '#273749',
-    borderRadius: 9,
-    padding: 10,
+    backgroundColor: '#111926',
+    borderWidth: 1,
+    borderColor: '#1e2b3c',
+    borderRadius: 14,
+    padding: 14,
     justifyContent: 'space-between',
-  },
-  cardKicker: {
-    color: '#ffcc00',
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 1.2,
   },
   cardTitle: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '800',
   },
-  cardSub: {
-    color: '#8da2b8',
-    fontSize: 9,
+  cardHint: {
+    color: '#94a3b8',
+    fontSize: 11,
   },
   missionChipsRow: {
     flexDirection: 'row',
     gap: 6,
   },
   missionChip: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 5,
-    backgroundColor: '#090d13',
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#0c131d',
     borderWidth: 1,
-    borderColor: '#2b3b4e',
+    borderColor: '#223044',
   },
   missionChipActive: {
-    backgroundColor: '#ffcc00',
-    borderColor: '#ffffff',
+    backgroundColor: '#00F0FF',
+    borderColor: '#00F0FF',
   },
   missionChipText: {
-    color: '#95aac0',
-    fontSize: 9,
-    fontWeight: '900',
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '700',
   },
   missionChipTextActive: {
-    color: '#0b0e14',
+    color: '#090d14',
+    fontWeight: '800',
   },
-  primaryActionBtn: {
+  secondaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#1a2736',
-    borderWidth: 1.5,
-    borderColor: '#00F0FF',
-    borderRadius: 6,
-    paddingVertical: 7,
+    backgroundColor: 'rgba(0, 240, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 240, 255, 0.3)',
+    borderRadius: 9,
+    paddingVertical: 8,
   },
-  primaryActionText: {
+  secondaryBtnText: {
     color: '#00F0FF',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.8,
+    fontSize: 12,
+    fontWeight: '700',
   },
   joinRow: {
     flexDirection: 'row',
@@ -557,229 +496,178 @@ const styles = StyleSheet.create({
   },
   joinInput: {
     flex: 1,
-    backgroundColor: '#090d13',
-    borderWidth: 1.5,
-    borderColor: '#2c3d50',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: '#0c131d',
+    borderWidth: 1,
+    borderColor: '#223044',
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '700',
   },
   joinBtn: {
-    backgroundColor: '#ffcc00',
-    borderRadius: 6,
-    paddingHorizontal: 12,
+    backgroundColor: '#00F0FF',
+    borderRadius: 9,
+    paddingHorizontal: 16,
     justifyContent: 'center',
   },
   joinBtnText: {
-    color: '#0b0e14',
-    fontSize: 10,
-    fontWeight: '900',
+    color: '#090d14',
+    fontSize: 12,
+    fontWeight: '800',
   },
   coopRight: {
     flex: 1,
-    backgroundColor: '#101722',
-    borderWidth: 2,
-    borderColor: '#ffcc00',
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: '#111926',
+    borderWidth: 1,
+    borderColor: '#233246',
+    borderRadius: 16,
+    padding: 16,
     justifyContent: 'space-between',
   },
-  roomHeader: {
+  roomTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  roomKicker: {
-    color: '#ffcc00',
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 1.2,
+  roomLabel: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '600',
   },
   roomCodeText: {
     color: '#ffffff',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '900',
-    letterSpacing: 2,
+    letterSpacing: 1.5,
   },
-  fourDevicesBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(0, 230, 153, 0.1)',
-    borderWidth: 1,
-    borderColor: '#00E699',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 5,
-  },
-  fourDevicesText: {
-    color: '#00E699',
-    fontSize: 8,
-    fontWeight: '900',
-  },
-  slotsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  slotBox: {
-    flex: 1,
-    backgroundColor: '#090d13',
-    borderWidth: 1,
-    borderColor: '#29394d',
-    borderRadius: 8,
-    padding: 9,
-    gap: 2,
-  },
-  slotTag: {
-    color: '#ffcc00',
-    fontSize: 8,
-    fontWeight: '900',
-  },
-  slotName: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  slotWatch: {
-    color: '#00E699',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  coopRulesBox: {
-    gap: 4,
-  },
-  coopRuleItem: {
+  readyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    backgroundColor: 'rgba(0, 230, 153, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 230, 153, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
-  coopRuleText: {
-    color: '#9db1c6',
-    fontSize: 9,
+  readyBadgeText: {
+    color: '#00E699',
+    fontSize: 11,
+    fontWeight: '700',
   },
-  deployCoopBtn: {
+  slotsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  slotBox: {
+    flex: 1,
+    backgroundColor: '#0c131d',
+    borderWidth: 1,
+    borderColor: '#1e2b3c',
+    borderRadius: 12,
+    padding: 12,
+    gap: 3,
+  },
+  slotLabel: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  slotName: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  slotSub: {
+    color: '#00E699',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  startCoopBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#d83800',
-    borderWidth: 2,
-    borderColor: '#ffcc00',
-    borderRadius: 8,
-    paddingVertical: 10,
+    backgroundColor: '#00E699',
+    borderRadius: 11,
+    paddingVertical: 12,
   },
-  deployCoopText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1,
+  startCoopBtnText: {
+    color: '#090d14',
+    fontSize: 14,
+    fontWeight: '800',
   },
   listContainer: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    gap: 10,
   },
   raidCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#101722',
-    borderWidth: 1.5,
-    borderColor: '#273749',
-    borderRadius: 9,
-    padding: 12,
-    gap: 12,
+    backgroundColor: '#111926',
+    borderWidth: 1,
+    borderColor: '#1e2b3c',
+    borderRadius: 14,
+    padding: 14,
+    gap: 14,
   },
   raidInfo: {
     flex: 1,
-    gap: 2,
-  },
-  raidOwner: {
-    color: '#00F0FF',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1,
+    gap: 3,
   },
   raidBaseName: {
     color: '#ffffff',
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: '800',
   },
-  raidSecurity: {
-    color: '#93a8be',
-    fontSize: 10,
-    fontWeight: '700',
+  raidSub: {
+    color: '#94a3b8',
+    fontSize: 12,
   },
-  raidStats: {
-    alignItems: 'flex-end',
-    gap: 3,
-  },
-  lootBox: {
-    backgroundColor: '#090d13',
-    borderWidth: 1,
-    borderColor: '#36485e',
-    borderRadius: 6,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    alignItems: 'flex-end',
-  },
-  lootLabel: {
-    color: '#889db2',
-    fontSize: 7,
-    fontWeight: '900',
-  },
-  lootValueRow: {
+  lootBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.25)',
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   lootValue: {
     color: '#FFD700',
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  raidHistoryText: {
-    color: '#768ca3',
-    fontSize: 9,
+    fontSize: 13,
+    fontWeight: '800',
   },
   raidBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#d83800',
-    borderWidth: 2,
-    borderColor: '#ffcc00',
-    borderRadius: 7,
-    paddingHorizontal: 14,
+    gap: 7,
+    backgroundColor: '#00F0FF',
+    borderRadius: 10,
+    paddingHorizontal: 16,
     paddingVertical: 10,
   },
   raidBtnText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.8,
+    color: '#090d14',
+    fontSize: 13,
+    fontWeight: '800',
   },
   reportCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#101722',
-    borderWidth: 1.5,
-    borderRadius: 9,
-    padding: 12,
-  },
-  reportCardDefended: {
-    borderColor: '#00E699',
-  },
-  reportCardLost: {
-    borderColor: '#ff4d6d',
-  },
-  reportIconCol: {
-    width: 32,
-    alignItems: 'center',
+    backgroundColor: '#111926',
+    borderWidth: 1,
+    borderColor: '#1e2b3c',
+    borderRadius: 14,
+    padding: 14,
   },
   reportBody: {
     flex: 1,
@@ -787,18 +675,15 @@ const styles = StyleSheet.create({
   },
   reportTitle: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '700',
   },
   reportTime: {
-    color: '#8da2b8',
-    fontSize: 10,
-  },
-  reportRight: {
-    alignItems: 'flex-end',
+    color: '#64748b',
+    fontSize: 11,
   },
   reportDelta: {
-    fontSize: 11,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

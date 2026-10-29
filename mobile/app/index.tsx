@@ -1,10 +1,7 @@
-// Pantalla Principal estilo Videojuego Arcade en formato Horizontal (Landscape):
-// - Fase 1 (Pantalla de Título): Solo el logo NEXO, el botón START centrado y el botón (?)
-//   de Manual Táctico en la esquina superior derecha.
-// - Fase 2 (Menú de Selección tras presionar START):
-//   1. MODO OFFLINE -> Lleva a los 5 Distritos (/missions) -> luego al Selector de Personaje.
-//   2. MODO ONLINE  -> Exige enlazar el reloj primero (/pair?next=/online) antes de entrar a /online.
-//   3. TALLER DECK  -> Lleva al Taller (/workshop), desde donde se accede a Mi Base (/base) y Perfil (/profile).
+// Pantalla Principal en formato Horizontal (Landscape):
+// - Fase 1 (Pantalla de Titulo): Logo NEXO, boton START centrado y boton (?) arriba a la derecha.
+// - Fase 2 (Seleccion de Modo): Solo las 3 tarjetas limpias con su icono grande y su titulo
+//   (MODO OFFLINE, MODO ONLINE, TALLER DECK), sin textos ni recuadros de relleno.
 import React, { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -20,11 +17,8 @@ import {
   ArrowLeft,
   CircleHelp,
   Globe,
-  Lock,
   Map,
   Play,
-  ShieldAlert,
-  Watch,
   Wrench,
 } from 'lucide-react-native';
 import { MENU_BG } from '../lib/environmentAssets';
@@ -72,181 +66,98 @@ export default function Index() {
     <ImageBackground source={MENU_BG} style={styles.bgImage} resizeMode="cover">
       <StatusBar hidden />
       <View style={styles.darkOverlay}>
-        <View style={styles.hazardStrip} />
-
         <SafeAreaView style={styles.safeArea}>
           {/* Barra superior */}
           <View style={styles.topBar}>
             {showModeMenu ? (
               <Pressable
                 onPress={() => setShowModeMenu(false)}
-                style={styles.backToTitleBtn}
+                style={styles.backBtn}
               >
-                <ArrowLeft size={16} color="#ffcc00" />
-                <Text style={styles.backToTitleText}>PANTALLA DE TÍTULO</Text>
+                <ArrowLeft size={16} color="#e2ecf5" />
+                <Text style={styles.backBtnText}>Inicio</Text>
               </Pressable>
             ) : (
-              <View style={styles.systemTag}>
-                <ShieldAlert size={14} color="#ffcc00" />
-                <Text style={styles.systemTagText}>NEXO // TACTICAL STEALTH</Text>
-              </View>
+              <View />
             )}
 
             <Pressable
               onPress={() => router.push('/how-to-play')}
               style={styles.helpCornerBtn}
-              accessibilityLabel="Manual táctico: Cómo jugar"
+              accessibilityLabel="Como jugar"
             >
               <CircleHelp size={22} color="#ffcc00" />
             </Pressable>
           </View>
 
-          {/* FASE 1: PANTALLA DE TÍTULO (SOLO BOTÓN START) */}
+          {/* FASE 1: PANTALLA DE TITULO (SOLO LOGO Y BOTON START) */}
           {!showModeMenu ? (
             <View style={styles.centerContent}>
-              <View style={styles.titleBlock}>
-                <Text style={styles.subTitle}>INFILTRACIÓN TÁCTICA · MÓVIL + RELOJ</Text>
-                <Text style={styles.logo}>NEXO</Text>
-              </View>
+              <Text style={styles.logo}>NEXO</Text>
 
-              <View style={styles.startButtonWrapper}>
-                <Pressable
-                  onPress={() => setShowModeMenu(true)}
-                  style={({ pressed }) => [
-                    styles.startBtn,
-                    pressed && styles.startBtnPressed,
-                  ]}
-                >
-                  <Play size={22} color="#ffffff" fill="#ffffff" />
-                  <Text style={styles.startBtnText}>START</Text>
-                </Pressable>
-              </View>
+              <Pressable
+                onPress={() => setShowModeMenu(true)}
+                style={({ pressed }) => [
+                  styles.startBtn,
+                  pressed && styles.startBtnPressed,
+                ]}
+              >
+                <Play size={20} color="#ffffff" fill="#ffffff" />
+                <Text style={styles.startBtnText}>START</Text>
+              </Pressable>
             </View>
           ) : (
-            /* FASE 2: MENÚ PRINCIPAL DE MODOS (OFFLINE / ONLINE / TALLER DECK) */
+            /* FASE 2: SELECCIONA MODO DE JUEGO (SOLO ICONO Y TITULO) */
             <View style={styles.modeMenuContainer}>
-              <View style={styles.modeHeaderBlock}>
-                <Text style={styles.modeKicker}>CENTRO DE OPERACIONES NEXO</Text>
-                <Text style={styles.modeTitle}>SELECCIONA MODO DE JUEGO</Text>
-              </View>
+              <Text style={styles.modeTitle}>SELECCIONA MODO DE JUEGO</Text>
 
               <View style={styles.modeCardsRow}>
-                {/* 1. MODO OFFLINE -> 5 DISTRITOS -> SELECTOR DE PERSONAJE */}
                 <Pressable
                   onPress={handleSelectOffline}
                   style={({ pressed }) => [
                     styles.modeCard,
-                    styles.modeCardOffline,
+                    styles.cardOffline,
                     pressed && styles.cardPressed,
                   ]}
                 >
-                  <View style={[styles.modeIconBadge, { borderColor: '#ffcc00' }]}>
-                    <Map size={24} color="#ffcc00" />
+                  <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 204, 0, 0.14)' }]}>
+                    <Map size={38} color="#ffcc00" />
                   </View>
-                  <Text style={styles.modeCardTag}>CAMPAÑA SOLITARIO</Text>
                   <Text style={styles.modeCardTitle}>MODO OFFLINE</Text>
-                  <Text style={styles.modeCardDesc}>
-                    Elige entre los 5 Distritos tácticos, selecciona a tu agente en campo e
-                    infiltra el objetivo.
-                  </Text>
-                  <View style={styles.modeCardFooter}>
-                    <Text style={styles.modeCardAction}>ENTRAR A LOS 5 DISTRITOS</Text>
-                  </View>
                 </Pressable>
 
-                {/* 2. MODO ONLINE -> REQUIERE ENLAZAR RELOJ */}
                 <Pressable
                   onPress={handleSelectOnline}
                   style={({ pressed }) => [
                     styles.modeCard,
-                    isWatchLinked ? styles.modeCardOnlineReady : styles.modeCardOnlineLocked,
+                    styles.cardOnline,
                     pressed && styles.cardPressed,
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.modeIconBadge,
-                      { borderColor: isWatchLinked ? '#00E699' : '#FF8800' },
-                    ]}
-                  >
-                    {isWatchLinked ? (
-                      <Globe size={24} color="#00E699" />
-                    ) : (
-                      <Watch size={24} color="#FF8800" />
-                    )}
+                  <View style={[styles.iconCircle, { backgroundColor: 'rgba(6, 214, 160, 0.14)' }]}>
+                    <Globe size={38} color="#06d6a0" />
                   </View>
-                  <Text
-                    style={[
-                      styles.modeCardTag,
-                      { color: isWatchLinked ? '#00E699' : '#FF8800' },
-                    ]}
-                  >
-                    {isWatchLinked ? 'RELOJ VINCULADO // ONLINE' : 'REQUISITO: ENLAZAR RELOJ'}
-                  </Text>
                   <Text style={styles.modeCardTitle}>MODO ONLINE</Text>
-                  <Text style={styles.modeCardDesc}>
-                    {isWatchLinked
-                      ? 'Salas cooperativas de 2 jugadores (4 dispositivos) y asaltos PvP a bases enemigas.'
-                      : 'Para jugar Online es obligatorio enlazar primero tu Smartwatch Wear OS con código de 4 dígitos.'}
-                  </Text>
-                  <View
-                    style={[
-                      styles.modeCardFooter,
-                      !isWatchLinked && styles.modeCardFooterWarn,
-                    ]}
-                  >
-                    {!isWatchLinked ? <Lock size={11} color="#FF8800" /> : null}
-                    <Text
-                      style={[
-                        styles.modeCardAction,
-                        { color: isWatchLinked ? '#00E699' : '#FF8800' },
-                      ]}
-                    >
-                      {isWatchLinked ? 'ENTRAR AL LOBBY ONLINE' : 'ENLAZAR RELOJ AHORA'}
-                    </Text>
-                  </View>
                 </Pressable>
 
-                {/* 3. TALLER DECK -> MEJORAS + MI BASE + PERFIL */}
                 <Pressable
                   onPress={handleSelectWorkshop}
                   style={({ pressed }) => [
                     styles.modeCard,
-                    styles.modeCardWorkshop,
+                    styles.cardWorkshop,
                     pressed && styles.cardPressed,
                   ]}
                 >
-                  <View style={[styles.modeIconBadge, { borderColor: '#00F0FF' }]}>
-                    <Wrench size={24} color="#00F0FF" />
+                  <View style={[styles.iconCircle, { backgroundColor: 'rgba(76, 201, 240, 0.14)' }]}>
+                    <Wrench size={38} color="#4cc9f0" />
                   </View>
-                  <Text style={[styles.modeCardTag, { color: '#00F0FF' }]}>
-                    EQUIPAMIENTO Y CUENTA
-                  </Text>
                   <Text style={styles.modeCardTitle}>TALLER DECK</Text>
-                  <Text style={styles.modeCardDesc}>
-                    Mejora el Hacker Deck, equipa habilidades del reloj, edita tu Base PvP 10x10 y
-                    consulta tu Perfil.
-                  </Text>
-                  <View style={[styles.modeCardFooter, styles.modeCardFooterCyan]}>
-                    <Text style={[styles.modeCardAction, { color: '#00F0FF' }]}>
-                      ABRIR TALLER · BASE · PERFIL
-                    </Text>
-                  </View>
                 </Pressable>
               </View>
             </View>
           )}
 
-          {/* Pie de pantalla */}
-          <View style={styles.footer}>
-            <Text style={styles.footerBlink}>
-              {showModeMenu
-                ? isWatchLinked
-                  ? `HACKER DECK CONECTADO: ${profile.watch?.deviceName}`
-                  : 'ESTADO DEL RELOJ: NO VINCULADO (REQUERIDO PARA MODO ONLINE)'
-                : 'PRESS START TO CONTINUE'}
-            </Text>
-          </View>
+          <View style={styles.footerSpacer} />
         </SafeAreaView>
       </View>
     </ImageBackground>
@@ -258,22 +169,16 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: '#0a0d10',
+    backgroundColor: '#0a0d12',
   },
   darkOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(8, 11, 16, 0.65)',
-  },
-  hazardStrip: {
-    height: 6,
-    backgroundColor: '#ffb800',
-    borderBottomWidth: 2,
-    borderBottomColor: '#000000',
+    backgroundColor: 'rgba(8, 12, 18, 0.72)',
   },
   safeArea: {
     flex: 1,
-    paddingHorizontal: 26,
-    paddingVertical: 10,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
     justifyContent: 'space-between',
   },
   topBar: {
@@ -281,106 +186,60 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  systemTag: {
+  backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(15, 20, 27, 0.88)',
-    borderWidth: 1.5,
-    borderColor: '#3d4b5c',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    backgroundColor: 'rgba(20, 29, 41, 0.9)',
+    borderWidth: 1,
+    borderColor: '#2d3f54',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
-  systemTagText: {
-    color: '#d0dce8',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-  },
-  backToTitleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(15, 22, 32, 0.92)',
-    borderWidth: 1.5,
-    borderColor: '#ffcc00',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  backToTitleText: {
-    color: '#ffcc00',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.2,
+  backBtnText: {
+    color: '#e2ecf5',
+    fontSize: 12,
+    fontWeight: '700',
   },
   helpCornerBtn: {
     width: 42,
     height: 42,
-    borderRadius: 10,
-    backgroundColor: 'rgba(18, 24, 32, 0.92)',
-    borderWidth: 2,
+    borderRadius: 12,
+    backgroundColor: 'rgba(20, 29, 41, 0.9)',
+    borderWidth: 1.5,
     borderColor: '#ffcc00',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-    elevation: 6,
   },
   centerContent: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 26,
-  },
-  titleBlock: {
-    alignItems: 'center',
-  },
-  subTitle: {
-    color: '#ffcc00',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 2.5,
-    marginBottom: 2,
-    textAlign: 'center',
-    textShadowColor: '#000000',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+    gap: 28,
   },
   logo: {
     color: '#ffb800',
-    fontSize: 72,
+    fontSize: 74,
     fontWeight: '900',
     letterSpacing: 14,
     textAlign: 'center',
     textShadowColor: '#000000',
-    textShadowOffset: { width: 4, height: 5 },
-    textShadowRadius: 1,
-  },
-  startButtonWrapper: {
-    width: 240,
-    alignItems: 'center',
+    textShadowOffset: { width: 3, height: 4 },
+    textShadowRadius: 4,
   },
   startBtn: {
-    width: '100%',
+    width: 220,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: 10,
     backgroundColor: '#d83800',
-    borderWidth: 3,
+    borderWidth: 2.5,
     borderColor: '#ffcc00',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 15,
     paddingHorizontal: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.9,
-    shadowRadius: 0,
-    elevation: 8,
   },
   startBtnPressed: {
     transform: [{ scale: 0.96 }],
@@ -391,128 +250,65 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
     letterSpacing: 4,
-    textShadowColor: '#000',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 2,
   },
   modeMenuContainer: {
     flex: 1,
     justifyContent: 'center',
-    gap: 12,
-  },
-  modeHeaderBlock: {
     alignItems: 'center',
-    gap: 2,
-  },
-  modeKicker: {
-    color: '#ffcc00',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 2,
+    gap: 24,
   },
   modeTitle: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: '900',
+    color: '#f1f5f9',
+    fontSize: 20,
+    fontWeight: '800',
     letterSpacing: 2,
-    textShadowColor: '#000',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 2,
   },
   modeCardsRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 20,
+    width: '100%',
+    maxWidth: 680,
     justifyContent: 'center',
-    alignItems: 'stretch',
   },
   modeCard: {
     flex: 1,
-    backgroundColor: 'rgba(14, 20, 29, 0.94)',
-    borderWidth: 2,
-    borderRadius: 10,
-    padding: 12,
-    justifyContent: 'space-between',
-    gap: 6,
-  },
-  modeCardOffline: {
-    borderColor: '#ffcc00',
-  },
-  modeCardOnlineReady: {
-    borderColor: '#00E699',
-  },
-  modeCardOnlineLocked: {
-    borderColor: '#FF8800',
-  },
-  modeCardWorkshop: {
-    borderColor: '#00F0FF',
-  },
-  cardPressed: {
-    transform: [{ scale: 0.98 }],
-  },
-  modeIconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#090d13',
+    height: 165,
+    backgroundColor: 'rgba(16, 23, 34, 0.92)',
     borderWidth: 1.5,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 16,
+    padding: 16,
   },
-  modeCardTag: {
-    color: '#ffcc00',
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 1.2,
+  cardOffline: {
+    borderColor: 'rgba(255, 204, 0, 0.55)',
+  },
+  cardOnline: {
+    borderColor: 'rgba(6, 214, 160, 0.55)',
+  },
+  cardWorkshop: {
+    borderColor: 'rgba(76, 201, 240, 0.55)',
+  },
+  cardPressed: {
+    transform: [{ scale: 0.97 }],
+    opacity: 0.9,
+  },
+  iconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modeCardTitle: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: 15,
+    fontWeight: '800',
     letterSpacing: 1,
+    textAlign: 'center',
   },
-  modeCardDesc: {
-    color: '#a9bdd2',
-    fontSize: 10,
-    lineHeight: 14,
-  },
-  modeCardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 204, 0, 0.14)',
-    borderWidth: 1,
-    borderColor: '#ffcc00',
-    borderRadius: 6,
-    paddingVertical: 6,
-    marginTop: 2,
-  },
-  modeCardFooterWarn: {
-    backgroundColor: 'rgba(255, 136, 0, 0.14)',
-    borderColor: '#FF8800',
-  },
-  modeCardFooterCyan: {
-    backgroundColor: 'rgba(0, 240, 255, 0.12)',
-    borderColor: '#00F0FF',
-  },
-  modeCardAction: {
-    color: '#ffcc00',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  footer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 2,
-  },
-  footerBlink: {
-    color: '#ffcc00',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    textShadowColor: '#000',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+  footerSpacer: {
+    height: 12,
   },
 });

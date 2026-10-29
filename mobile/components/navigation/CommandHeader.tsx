@@ -1,6 +1,4 @@
-// Barra superior para las pantallas internas en formato Horizontal (Landscape).
-// Permite regresar al Menú de Modos (/?menu=1), muestra el título de la sección actual,
-// los recursos del jugador (Créditos, Energía, Intel) y el estado del Smartwatch.
+// Barra superior limpia y suave para las pantallas internas en formato Horizontal (Landscape).
 import React from 'react';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -8,7 +6,6 @@ import {
   ArrowLeft,
   Coins,
   Cpu,
-  Home,
   Watch,
   Zap,
 } from 'lucide-react-native';
@@ -24,7 +21,6 @@ interface CommandHeaderProps {
 
 export function CommandHeader({
   title,
-  subtitle,
   player,
   watch,
   backTo,
@@ -43,53 +39,35 @@ export function CommandHeader({
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.hazardTop} />
       <View style={styles.bar}>
-        {/* Bloque izquierdo: Volver + Menú de Modos + Título */}
         <View style={styles.leftGroup}>
           <Pressable
             onPress={handleBack}
             style={styles.backBtn}
             accessibilityLabel="Volver"
           >
-            <ArrowLeft size={15} color="#ffcc00" />
-            <Text style={styles.backBtnText}>VOLVER</Text>
+            <ArrowLeft size={15} color="#e2ecf5" />
+            <Text style={styles.backBtnText}>Volver</Text>
           </Pressable>
 
-          <Pressable
-            onPress={() => router.replace('/?menu=1' as any)}
-            style={styles.iconBtn}
-            accessibilityLabel="Menú de Modos"
-          >
-            <Home size={15} color="#9fb3c8" />
-          </Pressable>
-
-          <View style={styles.titleBox}>
-            <Text style={styles.titleText} numberOfLines={1}>
-              {title}
-            </Text>
-            {subtitle ? (
-              <Text style={styles.subtitleText} numberOfLines={1}>
-                {subtitle}
-              </Text>
-            ) : null}
-          </View>
+          <Text style={styles.titleText} numberOfLines={1}>
+            {title}
+          </Text>
         </View>
 
-        {/* Bloque derecho: Recursos del jugador y estado del reloj */}
         {player ? (
           <View style={styles.resourcesGroup}>
             <View style={styles.resBadge}>
-              <Coins size={12} color="#FFD700" />
-              <Text style={[styles.resValue, { color: '#FFD700' }]}>{player.credits} CR</Text>
+              <Coins size={12} color="#ffd166" />
+              <Text style={styles.resValue}>{player.credits}</Text>
             </View>
             <View style={styles.resBadge}>
-              <Zap size={12} color="#00F0FF" />
-              <Text style={[styles.resValue, { color: '#00F0FF' }]}>{player.energy} EN</Text>
+              <Zap size={12} color="#4cc9f0" />
+              <Text style={styles.resValue}>{player.energy}</Text>
             </View>
             <View style={styles.resBadge}>
-              <Cpu size={12} color="#BD00FF" />
-              <Text style={[styles.resValue, { color: '#E299FF' }]}>{player.intel} IN</Text>
+              <Cpu size={12} color="#c77dff" />
+              <Text style={styles.resValue}>{player.intel}</Text>
             </View>
             <Pressable
               onPress={() => router.push('/pair')}
@@ -98,14 +76,14 @@ export function CommandHeader({
                 watch ? styles.watchBadgeLinked : styles.watchBadgeUnlinked,
               ]}
             >
-              <Watch size={12} color={watch ? '#00E699' : '#FF8800'} />
+              <Watch size={12} color={watch ? '#06d6a0' : '#ffb703'} />
               <Text
                 style={[
                   styles.watchBadgeText,
-                  { color: watch ? '#00E699' : '#FF8800' },
+                  { color: watch ? '#06d6a0' : '#ffb703' },
                 ]}
               >
-                {watch ? 'RELOJ ENLAZADO' : 'RELOJ NO ENLAZADO'}
+                {watch ? 'Reloj activo' : 'Enlazar reloj'}
               </Text>
             </Pressable>
           </View>
@@ -117,111 +95,86 @@ export function CommandHeader({
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: '#0c1118',
-    borderBottomWidth: 2,
-    borderBottomColor: '#253244',
-  },
-  hazardTop: {
-    height: 4,
-    backgroundColor: '#ffb800',
+    backgroundColor: '#0d131c',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1e2b3c',
   },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 12,
   },
   leftGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
     flexShrink: 1,
   },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
+    paddingHorizontal: 11,
     height: 32,
-    borderRadius: 6,
-    backgroundColor: '#151d28',
-    borderWidth: 1.5,
-    borderColor: '#ffcc00',
+    borderRadius: 8,
+    backgroundColor: '#16202e',
+    borderWidth: 1,
+    borderColor: '#2b3b4e',
   },
   backBtnText: {
-    color: '#ffcc00',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  iconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    backgroundColor: '#151d28',
-    borderWidth: 1.5,
-    borderColor: '#334458',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleBox: {
-    marginLeft: 2,
-    flexShrink: 1,
+    color: '#e2ecf5',
+    fontSize: 11,
+    fontWeight: '700',
   },
   titleText: {
-    color: '#ffcc00',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 1.4,
-  },
-  subtitleText: {
-    color: '#889bb0',
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+    color: '#f1f5f9',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   resourcesGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   resBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#121923',
+    gap: 5,
+    backgroundColor: '#141d29',
     borderWidth: 1,
-    borderColor: '#2a394a',
-    paddingHorizontal: 8,
+    borderColor: '#233246',
+    paddingHorizontal: 9,
     paddingVertical: 4,
-    borderRadius: 5,
+    borderRadius: 7,
   },
   resValue: {
-    fontSize: 10,
-    fontWeight: '900',
+    color: '#e2ecf5',
+    fontSize: 11,
+    fontWeight: '700',
   },
   watchBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: 5,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 5,
+    borderRadius: 7,
     borderWidth: 1,
   },
   watchBadgeLinked: {
-    backgroundColor: 'rgba(0, 230, 153, 0.1)',
-    borderColor: '#00E699',
+    backgroundColor: 'rgba(6, 214, 160, 0.1)',
+    borderColor: 'rgba(6, 214, 160, 0.45)',
   },
   watchBadgeUnlinked: {
-    backgroundColor: 'rgba(255, 136, 0, 0.12)',
-    borderColor: '#FF8800',
+    backgroundColor: 'rgba(255, 183, 3, 0.1)',
+    borderColor: 'rgba(255, 183, 3, 0.45)',
   },
   watchBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.6,
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
