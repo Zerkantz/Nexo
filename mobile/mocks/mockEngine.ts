@@ -185,44 +185,50 @@ function endTurn(
   updatedEntities: GameEntity[],
   onFeedback?: (msg: TacticalFeedbackMessage) => void,
 ): SessionState {
-  const me = state.players[0];
   let alert = state.alert;
 
-  let camouflageTurns = me.camouflageTurns;
-  if (camouflageTurns > 0) {
-    camouflageTurns -= 1;
-  }
+  const updatedPlayers = state.players.map((p) => {
+    let camouflageTurns = p.camouflageTurns;
+    if (camouflageTurns > 0) {
+      camouflageTurns -= 1;
+    }
+    return { ...p, camouflageTurns };
+  });
 
   let detectedThisTurn = false;
-  for (const e of updatedEntities) {
-    const active = !e.disabledTurns;
-    if (!active || camouflageTurns > 0) continue;
+  for (const p of updatedPlayers) {
+    if (p.camouflageTurns > 0) continue;
 
-    // Contacto directo en la misma casilla que un guardia o dron
-    if ((e.type === 'guard' || e.type === 'drone') && e.x === me.x && e.y === me.y) {
-      detectedThisTurn = true;
-      alert += 60;
-      onFeedback?.({
-        tone: 'danger',
-        text: 'CONTACTO DIRECTO CON PATRULLA: +60% de Alerta inmediata.',
-      });
-      continue;
-    }
+    for (const e of updatedEntities) {
+      const active = !e.disabledTurns;
+      if (!active) continue;
 
-    const seen = e.visionTiles?.some(([vx, vy]) => vx === me.x && vy === me.y);
-    if (seen) {
-      detectedThisTurn = true;
-      const delta = e.type === 'guard' ? 45 : 35;
-      alert += delta;
-      onFeedback?.({
-        tone: 'danger',
-        text:
-          e.type === 'guard'
-            ? `DETECTADO POR GUARDIA (+${delta}% Alerta) — Sal del cono naranja.`
-            : e.type === 'drone'
-              ? `DETECTADO POR DRON RAPIDO (+${delta}% Alerta) — Usa Pulso PEM o cobertura.`
-              : `DETECTADO POR CAMARA (+${delta}% Alerta) — Hackea la Terminal o usa Sabotaje.`,
-      });
+      // Contacto directo en la misma casilla que un guardia o dron
+      if ((e.type === 'guard' || e.type === 'drone') && e.x === p.x && e.y === p.y) {
+        detectedThisTurn = true;
+        alert += 60;
+        onFeedback?.({
+          tone: 'danger',
+          text: `CONTACTO DIRECTO CON PATRULLA (P${p.slot}): +60% de Alerta inmediata.`,
+        });
+        continue;
+      }
+
+      const seen = e.visionTiles?.some(([vx, vy]) => vx === p.x && vy === p.y);
+      if (seen) {
+        detectedThisTurn = true;
+        const delta = e.type === 'guard' ? 45 : 35;
+        alert += delta;
+        onFeedback?.({
+          tone: 'danger',
+          text:
+            e.type === 'guard'
+              ? `P${p.slot} DETECTADO POR GUARDIA (+${delta}% Alerta) — Sal del cono naranja.`
+              : e.type === 'drone'
+                ? `P${p.slot} DETECTADO POR DRON RAPIDO (+${delta}% Alerta) — Usa Pulso PEM o cobertura.`
+                : `P${p.slot} DETECTADO POR CAMARA (+${delta}% Alerta) — Hackea la Terminal o usa Sabotaje.`,
+        });
+      }
     }
   }
 
@@ -231,16 +237,18 @@ function endTurn(
   }
 
   const revealedTraps = [...state.revealedTraps];
-  const trap = updatedEntities.find((e) => e.type === 'trap' && e.x === me.x && e.y === me.y);
-  if (trap) {
-    const alreadyRevealed = revealedTraps.some(([tx, ty]) => tx === me.x && ty === me.y);
-    if (!alreadyRevealed) {
-      revealedTraps.push([me.x, me.y]);
-      alert += 35;
-      onFeedback?.({
-        tone: 'danger',
-        text: 'MINA LASER ACTIVADA (+35% Alerta) — Usa Escaner o Sobrecarga para neutralizarlas.',
-      });
+  for (const p of updatedPlayers) {
+    const trap = updatedEntities.find((e) => e.type === 'trap' && e.x === p.x && e.y === p.y);
+    if (trap) {
+      const alreadyRevealed = revealedTraps.some(([tx, ty]) => tx === p.x && ty === p.y);
+      if (!alreadyRevealed) {
+        revealedTraps.push([p.x, p.y]);
+        alert += 35;
+        onFeedback?.({
+          tone: 'danger',
+          text: `MINA LASER ACTIVADA POR P${p.slot} (+35% Alerta) — Usa Escaner o Sobrecarga para neutralizarlas.`,
+        });
+      }
     }
   }
 
@@ -252,7 +260,7 @@ function endTurn(
     alert,
     revealedTraps,
     entities: updatedEntities,
-    players: [{ ...me, camouflageTurns }, ...state.players.slice(1)],
+    players: updatedPlayers,
     status: alert >= 100 ? 'LOST' : state.status,
   };
 }
@@ -262,9 +270,16 @@ export function mockMove(
   dir: Direction,
   onRoomTransition?: (nextRoomState: SessionState) => void,
   onFeedback?: (msg: TacticalFeedbackMessage) => void,
+  playerSlot: number = 1,
 ): SessionState {
   if (state.status !== 'PLAYING') return state;
-  const me = state.players[0];
+  const playerIndex = Math.max(
+    0,
+    state.players.findIndex((p) => p.slot === playerSlot),
+  );
+  const me = state.players[playerIndex];
+  if (!me) return state;
+
   const [dx, dy] = DIR_DELTA[dir];
   const nx = me.x + dx;
   const ny = me.y + dy;
@@ -316,52 +331,71 @@ export function mockMove(
 
       if (door.targetRoom && SECTOR_ROOMS[door.targetRoom]) {
         const nextRoom = SECTOR_ROOMS[door.targetRoom];
-        const transitionedState: SessionState = {
-          ...nextRoom,
-          sessionId: state.sessionId,
-          alert: state.alert,
-          turn: state.turn + 1,
-          players: [
-            {
-              ...nextRoom.players[0],
+        const nextPlayers = state.players.map((p, idx) => {
+          if (idx === 0) {
+            return {
+              ...p,
               battery: Math.max(30, battery),
               maxBattery: me.maxBattery,
               camouflageTurns: me.camouflageTurns,
               x: door.targetX ?? nextRoom.players[0].x,
               y: door.targetY ?? nextRoom.players[0].y,
-            },
-            ...nextRoom.players.slice(1),
-          ],
+            };
+          }
+          return {
+            ...p,
+            x: Math.max(0, (door.targetX ?? nextRoom.players[0].x) - 1),
+            y: door.targetY ?? nextRoom.players[0].y,
+          };
+        });
+
+        const transitionedState: SessionState = {
+          ...nextRoom,
+          sessionId: state.sessionId,
+          alert: state.alert,
+          turn: state.turn + 1,
+          players: nextPlayers,
         };
         onRoomTransition?.(transitionedState);
         return transitionedState;
       }
 
+      const nextPlayers = [...state.players];
+      nextPlayers[playerIndex] = { ...me, battery };
+
       return {
         ...state,
         entities,
-        players: [{ ...me, battery }, ...state.players.slice(1)],
+        players: nextPlayers,
       };
     }
 
     if (door.targetRoom && SECTOR_ROOMS[door.targetRoom]) {
       const nextRoom = SECTOR_ROOMS[door.targetRoom];
-      const transitionedState: SessionState = {
-        ...nextRoom,
-        sessionId: state.sessionId,
-        alert: state.alert,
-        turn: state.turn + 1,
-        players: [
-          {
-            ...nextRoom.players[0],
+      const nextPlayers = state.players.map((p, idx) => {
+        if (idx === 0) {
+          return {
+            ...p,
             battery: Math.max(30, battery),
             maxBattery: me.maxBattery,
             camouflageTurns: me.camouflageTurns,
             x: door.targetX ?? nextRoom.players[0].x,
             y: door.targetY ?? nextRoom.players[0].y,
-          },
-          ...nextRoom.players.slice(1),
-        ],
+          };
+        }
+        return {
+          ...p,
+          x: Math.max(0, (door.targetX ?? nextRoom.players[0].x) - 1),
+          y: door.targetY ?? nextRoom.players[0].y,
+        };
+      });
+
+      const transitionedState: SessionState = {
+        ...nextRoom,
+        sessionId: state.sessionId,
+        alert: state.alert,
+        turn: state.turn + 1,
+        players: nextPlayers,
       };
       onRoomTransition?.(transitionedState);
       return transitionedState;
@@ -407,9 +441,12 @@ export function mockMove(
   const updatedPlayer = { ...me, x: nx, y: ny, battery };
   const updatedEntities = advanceGuardsAndCameras(entities, state.tiles, state.alert);
 
+  const nextPlayers = [...state.players];
+  nextPlayers[playerIndex] = updatedPlayer;
+
   const movedState: SessionState = {
     ...state,
-    players: [updatedPlayer, ...state.players.slice(1)],
+    players: nextPlayers,
   };
 
   const next = endTurn(movedState, updatedEntities, onFeedback);

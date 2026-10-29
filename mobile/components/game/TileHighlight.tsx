@@ -1,5 +1,5 @@
 // Marco que parpadea sobre una casilla para señalarla durante el tutorial.
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Animated, Platform, StyleSheet } from 'react-native';
 import { withAlpha } from '../../theme/colors';
 
@@ -7,11 +7,12 @@ interface Props {
   left: number;
   top: number;
   size: number;
-  color: string;
+  color?: string;
 }
 
-export function TileHighlight({ left, top, size, color }: Props) {
+export function TileHighlight({ left, top, size, color = '#00F0FF' }: Props) {
   const pulse = useRef(new Animated.Value(0)).current;
+  const safeColor = color || '#00F0FF';
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -34,9 +35,9 @@ export function TileHighlight({ left, top, size, color }: Props) {
           top,
           width: size,
           height: size,
-          borderColor: color,
-          backgroundColor: withAlpha(color, 0.18),
-          shadowColor: color,
+          borderColor: safeColor,
+          backgroundColor: withAlpha(safeColor, 0.18),
+          shadowColor: safeColor,
           opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }),
         },
       ]}

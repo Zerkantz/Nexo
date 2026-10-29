@@ -331,9 +331,14 @@ function validateChallengeInput(record, input) {
 
 function broadcastSessionAndContext() {
   if (!activeSession) return;
+  const sid = activeSession.sessionId;
+  if (sid) {
+    io.to(`session:${sid}`).emit('session:state', activeSession);
+  }
   io.to('player:1').emit('session:state', activeSession);
+  io.emit('session:state', activeSession);
   if (activeSession.status === 'PLAYING') {
-    io.to('player:1').emit('watch:context', buildWatchContext(activeSession));
+    io.emit('watch:context', buildWatchContext(activeSession));
   }
 }
 

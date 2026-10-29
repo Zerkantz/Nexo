@@ -109,19 +109,25 @@ function AnimatedEnemyPiece({
   );
 }
 
-/** Pieza animada del jugador con sprite puro (sin círculo fosforescente debajo) */
+/** Pieza animada del jugador con sprite puro y distintivo táctico de escuadrón */
 function AnimatedPlayerPiece({
   x,
   y,
   tileSize,
   characterId,
   camouflageTurns,
+  slot = 1,
+  isMe = true,
+  showBadge = false,
 }: {
   x: number;
   y: number;
   tileSize: number;
   characterId: CharacterId;
   camouflageTurns: number;
+  slot?: number;
+  isMe?: boolean;
+  showBadge?: boolean;
 }) {
   const anim = useRef(new Animated.ValueXY({ x: x * tileSize, y: y * tileSize })).current;
   const prevPos = useRef({ x, y });
@@ -155,6 +161,8 @@ function AnimatedPlayerPiece({
     }
   }, [x, y, tileSize, anim, facing]);
 
+  const badgeColor = slot === 1 ? '#00F0FF' : '#00E699';
+
   return (
     <Animated.View
       pointerEvents="none"
@@ -169,6 +177,13 @@ function AnimatedPlayerPiece({
         },
       ]}
     >
+      {showBadge ? (
+        <View style={[styles.playerBadgePill, { backgroundColor: badgeColor }]}>
+          <Text style={styles.playerBadgeText}>
+            P{slot}{isMe ? '·TÚ' : ''}
+          </Text>
+        </View>
+      ) : null}
       <CharacterSprite
         characterId={characterId}
         direction={facing}
@@ -430,29 +445,34 @@ export function Board({
           />
         ))}
 
-      {/* 6. Jugadores con sprite puro (sin círculo debajo) */}
+      {/* 6. Jugadores con sprite puro y distintivo de escuadrón */}
       {state.players.map((p) => {
         const charId = p.slot === 1 ? characterId : 'vicente';
+        const isCurrentMe = me ? p.slot === me.slot : p.slot === 1;
+        const showBadge = state.players.length > 1 || state.type === 'COOP';
         return (
           <AnimatedPlayerPiece
-            key={`p-${p.playerId}`}
+            key={`p-${p.playerId}-${p.slot}`}
             x={p.x}
             y={p.y}
             tileSize={tileSize}
             characterId={charId}
             camouflageTurns={p.camouflageTurns}
+            slot={p.slot}
+            isMe={isCurrentMe}
+            showBadge={showBadge}
           />
         );
       })}
 
-      {/* 7. Casillas señaladas por el tutorial */}
-      {highlightTiles.map(([hx, hy]) => (
+      {/* 7. Casillas señaladas por el tutorial con color seguro */}
+      {(highlightTiles || []).map(([hx, hy]) => (
         <TileHighlight
           key={`h-${hx}-${hy}`}
           left={hx * tileSize}
           top={hy * tileSize}
           size={tileSize}
-          color={highlightColor}
+          color={highlightColor || '#00F0FF'}
         />
       ))}
     </View>
@@ -632,5 +652,21 @@ const styles = StyleSheet.create({
     fontSize: 6.5,
     fontWeight: '900',
     letterSpacing: 0.4,
+  },
+  playerBadgePill: {
+    position: 'absolute',
+    top: -9,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+    zIndex: 10,
+    borderWidth: 1,
+    borderColor: '#ffffff',
+  },
+  playerBadgeText: {
+    color: '#090d14',
+    fontSize: 7.5,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
 });

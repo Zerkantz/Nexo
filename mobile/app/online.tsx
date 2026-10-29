@@ -44,6 +44,7 @@ export default function OnlineScreen() {
   const [selectedMissionId, setSelectedMissionId] = useState<number>(1);
   const [activeRoomCode, setActiveRoomCode] = useState<string>('NX-4821');
   const [joinInput, setJoinInput] = useState('');
+  const [isHost, setIsHost] = useState(true);
   const [statusNote, setStatusNote] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,15 +52,16 @@ export default function OnlineScreen() {
   }, []);
 
   const handleCreateCoopRoom = async () => {
+    setIsHost(true);
     try {
       const res = await sessionApi.createCoopRoom(selectedMissionId);
       setActiveRoomCode(res.roomCode);
-      setStatusNote(`Sala ${res.roomCode} creada.`);
+      setStatusNote(`Sala ${res.roomCode} creada. Eres Jugador 1 (Anfitrión).`);
     } catch {
       const randomNum = Math.floor(1000 + Math.random() * 9000);
       const code = `NX-${randomNum}`;
       setActiveRoomCode(code);
-      setStatusNote(`Sala ${code} lista para compartir.`);
+      setStatusNote(`Sala ${code} lista. Eres Jugador 1 (Anfitrión).`);
     }
   };
 
@@ -70,6 +72,7 @@ export default function OnlineScreen() {
       return;
     }
     const formatted = clean.startsWith('NX-') ? clean : `NX-${clean}`;
+    setIsHost(false);
     try {
       await sessionApi.joinCoopRoom(formatted);
     } catch {
@@ -77,12 +80,13 @@ export default function OnlineScreen() {
     }
     setActiveRoomCode(formatted);
     setJoinInput('');
-    setStatusNote(`Conectado a la sala ${formatted}.`);
+    setStatusNote(`Conectado a la sala ${formatted} como Jugador 2 (Invitado).`);
   };
 
   const handleStartCoopGame = () => {
     const codeSlug = activeRoomCode.toLowerCase();
-    router.push(`/character-select?next=/game/coop-${codeSlug}` as any);
+    const slot = isHost ? 1 : 2;
+    router.push(`/character-select?next=/game/coop-${codeSlug}?slot=${slot}` as any);
   };
 
   const handleStartRaid = async (baseId: number) => {
@@ -231,23 +235,45 @@ export default function OnlineScreen() {
                 </View>
 
                 <View style={styles.slotsRow}>
-                  <View style={styles.slotBox}>
-                    <Text style={styles.slotLabel}>Jugador 1</Text>
-                    <Text style={styles.slotName}>{profile.player.username}</Text>
-                    <Text style={styles.slotSub}>{profile.watch.deviceName}</Text>
+                  <View
+                    style={[
+                      styles.slotBox,
+                      isHost && { borderColor: '#00F0FF', borderWidth: 1.5 },
+                    ]}
+                  >
+                    <Text style={[styles.slotLabel, isHost && { color: '#00F0FF' }]}>
+                      Jugador 1 (Anfitrión){isHost ? ' · TÚ' : ''}
+                    </Text>
+                    <Text style={styles.slotName}>
+                      {isHost ? profile.player.username : 'ANFITRIÓN_NEXO'}
+                    </Text>
+                    <Text style={styles.slotSub}>
+                      {isHost ? (profile.watch?.deviceName || 'Wear OS Conectado') : 'Deck Sincronizado'}
+                    </Text>
                   </View>
 
-                  <View style={styles.slotBox}>
-                    <Text style={[styles.slotLabel, { color: '#00F0FF' }]}>Jugador 2</Text>
-                    <Text style={styles.slotName}>AGENTE_VEX</Text>
-                    <Text style={styles.slotSub}>Conectado y listo</Text>
+                  <View
+                    style={[
+                      styles.slotBox,
+                      !isHost && { borderColor: '#00E699', borderWidth: 1.5 },
+                    ]}
+                  >
+                    <Text style={[styles.slotLabel, { color: '#00E699' }]}>
+                      Jugador 2 (Compañero){!isHost ? ' · TÚ' : ''}
+                    </Text>
+                    <Text style={styles.slotName}>
+                      {!isHost ? profile.player.username : 'AGENTE_VEX'}
+                    </Text>
+                    <Text style={styles.slotSub}>
+                      {!isHost ? (profile.watch?.deviceName || 'Wear OS Conectado') : 'Conectado y listo'}
+                    </Text>
                   </View>
                 </View>
 
                 <Pressable onPress={handleStartCoopGame} style={styles.startCoopBtn}>
                   <Play size={16} color="#090d14" fill="#090d14" />
                   <Text style={styles.startCoopBtnText}>
-                    Iniciar Partida en Nivel {selectedMissionId}
+                    Iniciar Partida como Jugador {isHost ? '1 (P1)' : '2 (P2)'}
                   </Text>
                 </Pressable>
               </View>

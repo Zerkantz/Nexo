@@ -52,7 +52,9 @@ const SHORT_SKILL_LABELS: Record<SkillCode, string> = {
 };
 
 export default function GameScreen() {
-  const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
+  const params = useLocalSearchParams<{ sessionId: string; slot?: string }>();
+  const cleanSessionId = (params.sessionId ?? '').split('?')[0];
+  const mySlot = Number(params.slot || 1);
   const {
     state,
     feedback,
@@ -68,7 +70,7 @@ export default function GameScreen() {
     activateSkill,
     leave,
     resetDemo,
-  } = useGameSession(sessionId ?? '');
+  } = useGameSession(cleanSessionId, mySlot);
   const { width, height } = useWindowDimensions();
   const [pauseOpen, setPauseOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -87,7 +89,7 @@ export default function GameScreen() {
     }).start();
   }, [entryFade]);
 
-  const me = state?.players[0];
+  const me = state?.players.find((p) => p.slot === mySlot) ?? state?.players[0];
   const tutorial = useTutorial(state, me);
 
   const exitToMainMenu = () => {
@@ -215,7 +217,7 @@ export default function GameScreen() {
             characterId={characterId}
             onMove={canPlay ? move : undefined}
             highlightTiles={tutorial.highlightTiles}
-            highlightColor={tutorial.current?.color}
+            highlightColor={tutorial.current?.color || '#00F0FF'}
           />
         </View>
 

@@ -57,6 +57,11 @@ export function Hud({ state, me }: Props) {
     (e) => e.type === 'door' && e.id !== 'DOOR_AIRLOCK_S2' && e.open,
   ).length;
 
+  const partner = state.players.find((p) => p.slot !== (me?.slot ?? 1));
+  const partnerBatPct = partner
+    ? Math.min(100, Math.round((partner.battery / partner.maxBattery) * 100))
+    : 0;
+
   return (
     <View style={[styles.panel, { borderColor: withAlpha(alertColor, 0.45) }]}>
       <View style={styles.row}>
@@ -76,14 +81,34 @@ export function Hud({ state, me }: Props) {
         </View>
       </View>
 
-      {/* Energia */}
+      {/* Energia (Jugador actual) */}
       <View style={styles.barRow}>
         <Battery size={14} color="#00e699" />
         <View style={styles.barTrack}>
           <View style={[styles.barFill, { width: `${batteryPct}%`, backgroundColor: '#00e699' }]} />
         </View>
-        <Text style={[styles.barValue, { color: '#00e699' }]}>{me?.battery ?? 0}%</Text>
+        <Text style={[styles.barValue, { color: '#00e699' }]}>
+          {partner ? `P${me?.slot ?? 1} ` : ''}{me?.battery ?? 0}%
+        </Text>
       </View>
+
+      {/* Energia (Compañero Co-op) */}
+      {partner ? (
+        <View style={styles.barRow}>
+          <Battery size={14} color="#00F0FF" />
+          <View style={styles.barTrack}>
+            <View
+              style={[
+                styles.barFill,
+                { width: `${partnerBatPct}%`, backgroundColor: '#00F0FF' },
+              ]}
+            />
+          </View>
+          <Text style={[styles.barValue, { color: '#00F0FF' }]}>
+            P{partner.slot} {partner.battery}%
+          </Text>
+        </View>
+      ) : null}
 
       {/* Sospecha / Alerta */}
       <View style={styles.barRow}>

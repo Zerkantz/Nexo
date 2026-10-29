@@ -72,10 +72,13 @@ export const alertLabel: Record<AlertState, string> = {
 };
 
 /** Agrega transparencia a un color hex (#RRGGBB) -> rgba(). */
-export function withAlpha(hex: string, alpha: number): string {
+export function withAlpha(hex: string | undefined | null, alpha: number): string {
+  if (!hex || typeof hex !== 'string') {
+    return `rgba(0, 240, 255, ${alpha})`;
+  }
   const h = hex.replace('#', '');
-  const r = parseInt(h.substring(0, 2), 16);
-  const g = parseInt(h.substring(2, 4), 16);
-  const b = parseInt(h.substring(4, 6), 16);
+  const r = parseInt(h.substring(0, 2), 16) || 0;
+  const g = parseInt(h.substring(2, 4), 16) || 240;
+  const b = parseInt(h.substring(4, 6), 16) || 255;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }

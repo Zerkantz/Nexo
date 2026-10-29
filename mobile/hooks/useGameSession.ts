@@ -155,21 +155,47 @@ function buildInitialLocalState(
     roomName = `ASALTO PvP // BASE #${sessionId.replace('raid-', '')}`;
   }
 
+  let initialPlayers = mockLevel1State.players.map((p) => ({
+    ...p,
+    maxBattery,
+    battery: Math.min(maxBattery, p.battery + (maxBattery - 100)),
+  }));
+
+  if (sessionType === 'COOP') {
+    // Modo Cooperativo: ambos agentes aparecen simultáneamente en el mapa
+    initialPlayers = [
+      {
+        playerId: profile?.player?.id ?? 1,
+        slot: 1,
+        x: 0,
+        y: 0,
+        battery: 25,
+        maxBattery,
+        camouflageTurns: 0,
+      },
+      {
+        playerId: 2,
+        slot: 2,
+        x: 1,
+        y: 0,
+        battery: 25,
+        maxBattery,
+        camouflageTurns: 0,
+      },
+    ];
+  }
+
   return {
     ...mockLevel1State,
     sessionId: sessionId || 'demo',
     type: sessionType,
     theme,
     roomName,
-    players: mockLevel1State.players.map((p) => ({
-      ...p,
-      maxBattery,
-      battery: Math.min(maxBattery, p.battery + (maxBattery - 100)),
-    })),
+    players: initialPlayers,
   };
 }
 
-export function useGameSession(sessionId: string) {
+export function useGameSession(sessionId: string, mySlot: number = 1) {
   const isDemo = true;
   const profileRef = useRef<PlayerProfileState | undefined>(undefined);
 
@@ -205,6 +231,18 @@ export function useGameSession(sessionId: string) {
 
   useEffect(() => {
     const socket = connectSocket('nexo_mobile_jwt_1');
+
+    const onSessionState = (remoteState: SessionState) => {
+      if (remoteState && remoteState.sessionId === sessionId) {
+        setState((current) => {
+          if (!current) return remoteState;
+          if (remoteState.turn >= current.turn) {
+            return remoteState;
+          }
+          return current;
+        });
+      }
+    };
 
     const onWatchCommand = (cmd: WatchCommandPayload) => {
       if (cmd.type === 'HACK_STARTED') {
@@ -260,10 +298,12 @@ export function useGameSession(sessionId: string) {
       }
     };
 
+    socket.on('session:state', onSessionState);
     socket.on('watch:command', onWatchCommand);
     socket.emit('session:join', { sessionId: sessionId || 'demo' });
 
     return () => {
+      socket.off('session:state', onSessionState);
       socket.off('watch:command', onWatchCommand);
     };
   }, [sessionId]);
@@ -315,23 +355,27 @@ export function useGameSession(sessionId: string) {
     }
   }, [state, ended, sessionId]);
 
-  const move = useCallback((dir: Direction) => {
-    setState((s) => {
-      if (!s) return s;
-      return mockMove(
-        s,
-        dir,
-        (nextRoom) => {
-          setTransitioningRoom(nextRoom.roomName ?? 'NUEVO SECTOR');
-          setFeedback({
-            tone: 'info',
-            text: `INGRESANDO A ${nextRoom.roomName}: Hackea las 2 Terminales para desbloquear la Boveda Sur.`,
-          });
-        },
-        (msg) => setFeedback(msg),
-      );
-    });
-  }, []);
+  const move = useCallback(
+    (dir: Direction) => {
+      setState((s) => {
+        if (!s) return s;
+        return mockMove(
+          s,
+          dir,
+          (nextRoom) => {
+            setTransitioningRoom(nextRoom.roomName ?? 'NUEVO SECTOR');
+            setFeedback({
+              tone: 'info',
+              text: `INGRESANDO A ${nextRoom.roomName}: Hackea las 2 Terminales para desbloquear la Boveda Sur.`,
+            });
+          },
+          (msg) => setFeedback(msg),
+          mySlot,
+        );
+      });
+    },
+    [mySlot],
+  );
 
   const wait = useCallback(() => {
     setState((s) => (s ? mockWait(s, (msg) => setFeedback(msg)) : s));
