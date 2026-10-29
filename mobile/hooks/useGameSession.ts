@@ -137,7 +137,6 @@ function buildInitialLocalState(
 
   let theme = mockLevel1State.theme;
   let roomName = mockLevel1State.roomName;
-  let sessionType: SessionState['type'] = 'SOLO';
 
   if (sessionId.startsWith('level-')) {
     const lv = parseInt(sessionId.replace('level-', ''), 10) || 1;
@@ -146,49 +145,19 @@ function buildInitialLocalState(
       theme = found.theme;
       roomName = `NIVEL ${lv}: ${found.name}`;
     }
-  } else if (sessionId.startsWith('coop-')) {
-    sessionType = 'COOP';
-    roomName = `OPERACION CO-OP // ${sessionId.replace('coop-', '').toUpperCase()}`;
-  } else if (sessionId.startsWith('raid-')) {
-    sessionType = 'RAID';
-    theme = 'SERVERS';
-    roomName = `ASALTO PvP // BASE #${sessionId.replace('raid-', '')}`;
   }
 
-  let initialPlayers = mockLevel1State.players.map((p) => ({
+  const initialPlayers = mockLevel1State.players.map((p) => ({
     ...p,
+    playerId: profile?.player?.id ?? 1,
     maxBattery,
     battery: Math.min(maxBattery, p.battery + (maxBattery - 100)),
   }));
 
-  if (sessionType === 'COOP') {
-    // Modo Cooperativo: ambos agentes aparecen simultáneamente en el mapa
-    initialPlayers = [
-      {
-        playerId: profile?.player?.id ?? 1,
-        slot: 1,
-        x: 0,
-        y: 0,
-        battery: 25,
-        maxBattery,
-        camouflageTurns: 0,
-      },
-      {
-        playerId: 2,
-        slot: 2,
-        x: 1,
-        y: 0,
-        battery: 25,
-        maxBattery,
-        camouflageTurns: 0,
-      },
-    ];
-  }
-
   return {
     ...mockLevel1State,
     sessionId: sessionId || 'demo',
-    type: sessionType,
+    type: 'SOLO',
     theme,
     roomName,
     players: initialPlayers,

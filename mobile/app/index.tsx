@@ -1,7 +1,7 @@
 // Pantalla Principal en formato Horizontal (Landscape):
 // - Fase 1 (Pantalla de Titulo): Logo NEXO, boton START centrado y boton (?) arriba a la derecha.
-// - Fase 2 (Seleccion de Modo): Solo las 3 tarjetas limpias con su icono grande y su titulo
-//   (MODO OFFLINE, MODO ONLINE, TALLER DECK), sin textos ni recuadros de relleno.
+// - Fase 2 (Seleccion de Modo): 2 tarjetas limpias con su icono grande y su titulo
+//   (MISIONES TACTICAS y TALLER DECK), sin saturacion ni textos de relleno.
 import React, { useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -16,7 +16,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   CircleHelp,
-  Globe,
   Map,
   Play,
   Wrench,
@@ -32,7 +31,7 @@ export default function Index() {
   const router = useRouter();
   const params = useLocalSearchParams<{ menu?: string }>();
   const [showModeMenu, setShowModeMenu] = useState(params.menu === '1');
-  const [profile, setProfile] = useState<PlayerProfileState>(DEFAULT_PROFILE_STATE);
+  const [, setProfile] = useState<PlayerProfileState>(DEFAULT_PROFILE_STATE);
 
   useEffect(() => {
     if (params.menu === '1') {
@@ -44,18 +43,8 @@ export default function Index() {
     loadPlayerProfile().then(setProfile);
   }, [showModeMenu]);
 
-  const isWatchLinked = !!profile.watch;
-
-  const handleSelectOffline = () => {
+  const handleSelectMissions = () => {
     router.push('/missions');
-  };
-
-  const handleSelectOnline = () => {
-    if (!isWatchLinked) {
-      router.push('/pair?next=/online' as any);
-    } else {
-      router.push('/online');
-    }
   };
 
   const handleSelectWorkshop = () => {
@@ -113,31 +102,17 @@ export default function Index() {
 
               <View style={styles.modeCardsRow}>
                 <Pressable
-                  onPress={handleSelectOffline}
+                  onPress={handleSelectMissions}
                   style={({ pressed }) => [
                     styles.modeCard,
-                    styles.cardOffline,
+                    styles.cardMissions,
                     pressed && styles.cardPressed,
                   ]}
                 >
                   <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 204, 0, 0.14)' }]}>
-                    <Map size={38} color="#ffcc00" />
+                    <Map size={42} color="#ffcc00" />
                   </View>
-                  <Text style={styles.modeCardTitle}>MODO OFFLINE</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={handleSelectOnline}
-                  style={({ pressed }) => [
-                    styles.modeCard,
-                    styles.cardOnline,
-                    pressed && styles.cardPressed,
-                  ]}
-                >
-                  <View style={[styles.iconCircle, { backgroundColor: 'rgba(6, 214, 160, 0.14)' }]}>
-                    <Globe size={38} color="#06d6a0" />
-                  </View>
-                  <Text style={styles.modeCardTitle}>MODO ONLINE</Text>
+                  <Text style={styles.modeCardTitle}>MISIONES TACTICAS</Text>
                 </Pressable>
 
                 <Pressable
@@ -149,7 +124,7 @@ export default function Index() {
                   ]}
                 >
                   <View style={[styles.iconCircle, { backgroundColor: 'rgba(76, 201, 240, 0.14)' }]}>
-                    <Wrench size={38} color="#4cc9f0" />
+                    <Wrench size={42} color="#4cc9f0" />
                   </View>
                   <Text style={styles.modeCardTitle}>TALLER DECK</Text>
                 </Pressable>
@@ -265,27 +240,25 @@ const styles = StyleSheet.create({
   },
   modeCardsRow: {
     flexDirection: 'row',
-    gap: 20,
+    gap: 28,
     width: '100%',
-    maxWidth: 680,
+    maxWidth: 580,
     justifyContent: 'center',
   },
   modeCard: {
     flex: 1,
-    height: 165,
-    backgroundColor: 'rgba(16, 23, 34, 0.92)',
+    maxWidth: 260,
+    height: 175,
+    backgroundColor: 'rgba(16, 23, 34, 0.94)',
     borderWidth: 1.5,
-    borderRadius: 16,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
     padding: 16,
   },
-  cardOffline: {
+  cardMissions: {
     borderColor: 'rgba(255, 204, 0, 0.55)',
-  },
-  cardOnline: {
-    borderColor: 'rgba(6, 214, 160, 0.55)',
   },
   cardWorkshop: {
     borderColor: 'rgba(76, 201, 240, 0.55)',
@@ -295,17 +268,17 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 78,
+    height: 78,
+    borderRadius: 39,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modeCardTitle: {
     color: '#ffffff',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     textAlign: 'center',
   },
   footerSpacer: {

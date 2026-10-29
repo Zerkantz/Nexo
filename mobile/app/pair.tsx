@@ -10,8 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   CheckCircle2,
   Delete,
-  Globe,
   Link2,
+  Play,
   Radio,
   RefreshCw,
   ShieldAlert,
@@ -119,26 +119,11 @@ export default function PairWatchScreen() {
     <SafeAreaView style={styles.root}>
       <StatusBar hidden />
       <CommandHeader
-        title="ENLAZAR RELOJ // WEAR OS HACKER DECK"
-        subtitle={
-          params.next === '/online'
-            ? 'PASO OBLIGATORIO ANTES DE ACCEDER AL MODO ONLINE'
-            : 'SINCRONIZACIÓN DEL HACKER DECK EN MUÑECA'
-        }
+        title="Enlazar Reloj"
         player={profile.player}
         watch={profile.watch}
         backTo="/?menu=1"
       />
-
-      {params.next === '/online' && !profile.watch ? (
-        <View style={styles.onlineRequiredBanner}>
-          <ShieldAlert size={14} color="#FF8800" />
-          <Text style={styles.onlineRequiredText}>
-            PARA JUGAR ONLINE DEBES ENLAZAR TU RELOJ: Ingresa el código de 4 dígitos del
-            Smartwatch (o pulsa DEMO 4821) para continuar al Lobby Online.
-          </Text>
-        </View>
-      ) : null}
 
       <View style={styles.body}>
         {/* Columna Izquierda: Estado del Reloj y Deck Táctico */}
@@ -218,11 +203,11 @@ export default function PairWatchScreen() {
               {profile.watch ? (
                 <>
                   <Pressable
-                    onPress={() => router.replace('/online')}
+                    onPress={() => router.replace('/missions')}
                     style={styles.goOnlineBtn}
                   >
-                    <Globe size={13} color="#0b0e14" />
-                    <Text style={styles.goOnlineBtnText}>IR AL MODO ONLINE</Text>
+                    <Play size={13} color="#0b0e14" />
+                    <Text style={styles.goOnlineBtnText}>IR A MISIONES</Text>
                   </Pressable>
 
                   <Pressable onPress={handleUnlink} style={styles.unlinkBtn}>
@@ -339,9 +324,7 @@ export default function PairWatchScreen() {
           >
             <Link2 size={16} color="#ffffff" />
             <Text style={styles.claimBtnText}>
-              {params.next === '/online'
-                ? 'ENLAZAR RELOJ Y ENTRAR A ONLINE'
-                : 'ENLAZAR RELOJ A MI CUENTA'}
+              ENLAZAR RELOJ A MI CUENTA
             </Text>
           </Pressable>
         </View>
