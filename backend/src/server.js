@@ -1,12 +1,38 @@
-// Servidor autoritativo REST + Socket.io para NEXO (Móvil Expo + Smartwatch Wear OS).
+// Servidor autoritativo REST + Socket.io + MySQL 8 para NEXO (Movil Expo + Smartwatch Wear OS).
 // Implementa el contrato completo de docs/NEXO_Contexto_IA.md y watch/watch/docs/INTEGRATION.md.
 const http = require('http');
-const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const { Server } = require('socket.io');
 
-const PORT = Number(process.env.PORT || 3000);
+const env = require('./config/env');
+const { initDatabase, query } = require('./config/db');
+const { seed } = require('./db/seed');
+const {
+  signMobileToken,
+  verifyToken,
+  resolvePlayerIdFromReq,
+  wrap,
+  errorHandler,
+} = require('./auth');
+const {
+  getFullPlayerProfile,
+  registerPlayer,
+  loginPlayer,
+  createPairingCodeInDb,
+  getPairingStatusFromDb,
+  getActivePairingFromDb,
+  claimPairingCodeInDb,
+  touchWatchLastSeen,
+  unlinkWatchInDb,
+  buyUpgradeInDb,
+  equipSkillsInDb,
+  savePlayerBaseInDb,
+  recordMissionResultInDb,
+  getRaidTargetsFromDb,
+} = require('./db/playerRepo');
+
+const PORT = env.PORT;
 
 const app = express();
 app.use(cors());
@@ -21,7 +47,7 @@ const io = new Server(httpServer, {
 });
 
 // ============================================================================
-// Estado en memoria sincronizado entre Móvil y Smartwatch
+// Cache de sesion en tiempo real respaldado por MySQL 8
 // ============================================================================
 
 const SKILL_COSTS = {
@@ -40,9 +66,9 @@ let playerProfile = {
   id: 1,
   username: 'AGENTE_NEXO',
   email: 'agente@nexo.tactical',
-  credits: 350,
-  energy: 90,
-  intel: 35,
+  credits: 450,
+  energy: 95,
+  intel: 40,
   upgrades: {
     battery: 1,
     cipher: 1,
@@ -53,18 +79,19 @@ let playerProfile = {
   watch: null,
 };
 
-// Códigos temporales de vinculación: Map<pairingToken, PairingEntry>
-const pairingRequests = new Map();
-
-// Partida activa sincronizada entre móvil y reloj
+// Partida activa sincronizada entre movil y reloj
 let activeSession = null;
 let radarActiveForSession = false;
+let lastRecordedWinSessionId = null;
 
-// Desafíos de hackeo activos enviados al reloj: Map<challengeId, ChallengeRecord>
+// Salas cooperativas activas en memoria + MySQL
+const coopRooms = new Map();
+
+// Desafios de hackeo activos enviados al reloj: Map<challengeId, ChallengeRecord>
 const activeChallenges = new Map();
 
 // ============================================================================
-// Funciones auxiliares de cálculo de `watch:context` y minijuegos
+// Funciones auxiliares de calculo de `watch:context` y minijuegos
 // ============================================================================
 
 function getEfficiencyDiscount() {
@@ -78,7 +105,7 @@ function getSkillCost(code) {
 }
 
 /**
- * Busca si el jugador en el tablero móvil está sobre o adyacente (distancia Manhattan <= 1)
+ * Busca si el jugador en el tablero movil esta sobre o adyacente (distancia Manhattan <= 1)
  * a una puerta cerrada o a una terminal hackeable.
  */
 function findNearHackTarget(state) {
@@ -101,8 +128,8 @@ function findNearHackTarget(state) {
 }
 
 /**
- * Calcula rumbo (0° norte/arriba, 90° derecha/este, 180° abajo/sur, 270° izquierda/oeste)
- * y distancia Manhattan hacia la casilla de extracción (5) o puerta morada de sector.
+ * Calcula rumbo (0 grados norte/arriba, 90 derecha/este, 180 abajo/sur, 270 izquierda/oeste)
+ * y distancia Manhattan hacia la casilla de extraccion (5) o puerta morada de sector.
  */
 function computeRadarData(state) {
   if (!state || !radarActiveForSession || !Array.isArray(state.players) || !state.players[0]) {
@@ -136,7 +163,6 @@ function computeRadarData(state) {
   const dx = targetX - p.x;
   const dy = targetY - p.y;
   const distance = Math.abs(dx) + Math.abs(dy);
-  // 0° arriba (dy = -1), 90° derecha (dx = 1)
   let deg = (Math.atan2(dx, -dy) * 180) / Math.PI;
   if (deg < 0) deg += 360;
 
@@ -173,13 +199,17 @@ function buildWatchContext(state) {
 
   const skills = [];
 
-  // Incluir HACK cuando hay objetivo cercano (según docs/INTEGRATION.md sección "Habilidades y feedback")
   const hackCost = getSkillCost('HACK');
   skills.push({
     code: 'HACK',
     cost: hackCost,
     available: nearTarget !== null && battery >= hackCost,
-    reason: nearTarget === null ? 'Acércate a una puerta o terminal' : battery < hackCost ? 'Batería insuficiente' : null,
+    reason:
+      nearTarget === null
+        ? 'Acercate a una puerta o terminal'
+        : battery < hackCost
+          ? 'Bateria insuficiente'
+          : null,
   });
 
   for (const code of equipped) {
@@ -190,7 +220,7 @@ function buildWatchContext(state) {
       code,
       cost,
       available: hasBat,
-      reason: hasBat ? null : 'Batería insuficiente',
+      reason: hasBat ? null : 'Bateria insuficiente',
     });
   }
 
@@ -205,7 +235,7 @@ function buildWatchContext(state) {
 }
 
 /**
- * Elige y genera los parámetros del minijuego según el tema/nivel o la entidad objetivo.
+ * Elige y genera los parametros del minijuego segun el tema/nivel o la entidad objetivo.
  * Compatible al 100% con `Protocol.challenge(json)` en `watch/watch/.../Protocol.kt`.
  */
 function createChallengePayload(targetId, state) {
@@ -213,7 +243,6 @@ function createChallengePayload(targetId, state) {
   const cipherLevel = playerProfile.upgrades?.cipher || 1;
   const expiresAt = new Date(Date.now() + 45000).toISOString();
 
-  // Seleccionar minijuego según el tema del nivel o la entidad
   const theme = state?.theme || 'BANK';
   let minigame = 'SEQUENCE';
   if (theme === 'CRYPT') minigame = 'GLYPHS';
@@ -308,227 +337,380 @@ function broadcastSessionAndContext() {
 }
 
 // ============================================================================
-// Endpoints REST (/api/*)
+// Endpoints REST (/api/*) conectados a MySQL 8
 // ============================================================================
 
-app.get('/api/health', (_req, res) => {
-  let latestPendingCode = null;
-  for (const entry of pairingRequests.values()) {
-    if (entry.status === 'PENDING' && new Date(entry.expiresAt).getTime() > Date.now()) {
-      latestPendingCode = entry.code;
+app.get(
+  '/api/health',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const [activePairing] = await Promise.all([
+      getActivePairingFromDb(playerId),
+      query('SELECT 1 AS ok'),
+    ]);
+    playerProfile = (await getFullPlayerProfile(playerId)) || playerProfile;
+
+    res.json({
+      ok: true,
+      dbConnected: true,
+      database: env.DB_NAME,
+      watchLinked: !!playerProfile.watch,
+      watch: playerProfile.watch,
+      pendingWatchCode: activePairing.activeCode?.code || null,
+      activeSessionId: activeSession?.sessionId || null,
+    });
+  }),
+);
+
+app.post(
+  '/api/auth/register',
+  wrap(async (req, res) => {
+    const profile = await registerPlayer(req.body || {});
+    playerProfile = profile;
+    const token = signMobileToken(profile.id);
+    res.json({
+      token,
+      player: profile.player,
+      profile,
+    });
+  }),
+);
+
+app.post(
+  '/api/auth/login',
+  wrap(async (req, res) => {
+    const profile = await loginPlayer(req.body || {});
+    playerProfile = profile;
+    const token = signMobileToken(profile.id);
+    res.json({
+      token,
+      player: profile.player,
+      profile,
+    });
+  }),
+);
+
+app.get(
+  '/api/me',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const profile = await getFullPlayerProfile(playerId);
+    if (profile) {
+      playerProfile = profile;
     }
-  }
-  res.json({
-    ok: true,
-    watchLinked: !!playerProfile.watch,
-    watch: playerProfile.watch,
-    pendingWatchCode: latestPendingCode,
-    activeSessionId: activeSession?.sessionId || null,
-  });
-});
+    res.json(playerProfile);
+  }),
+);
 
-app.post('/api/auth/register', (req, res) => {
-  const { username, email } = req.body || {};
-  if (username) playerProfile.username = String(username).toUpperCase();
-  if (email) playerProfile.email = String(email);
-  res.json({
-    token: 'nexo_mobile_jwt_1',
-    player: {
-      id: playerProfile.id,
-      username: playerProfile.username,
-      email: playerProfile.email,
-      credits: playerProfile.credits,
-      energy: playerProfile.energy,
-      intel: playerProfile.intel,
-    },
-  });
-});
+// 1. El Smartwatch solicita un codigo de 4 digitos (POST /api/pairing/code) -> Guarda en MySQL
+app.post(
+  '/api/pairing/code',
+  wrap(async (_req, res) => {
+    const created = await createPairingCodeInDb();
+    console.log(
+      `[PAIRING][MySQL] Smartwatch solicito codigo: ${created.code} (token: ${created.pairingToken})`,
+    );
+    io.to('player:1').emit('pairing:code_requested', {
+      code: created.code,
+      expiresAt: created.expiresAt,
+    });
+    res.json(created);
+  }),
+);
 
-app.post('/api/auth/login', (req, res) => {
-  const { email } = req.body || {};
-  if (email) playerProfile.email = String(email);
-  res.json({
-    token: 'nexo_mobile_jwt_1',
-    player: {
-      id: playerProfile.id,
-      username: playerProfile.username,
-      email: playerProfile.email,
-      credits: playerProfile.credits,
-      energy: playerProfile.energy,
-      intel: playerProfile.intel,
-    },
-  });
-});
+// 2. El Smartwatch pregunta cada 2 s si el movil ya confirmo el codigo (GET /api/pairing/status/:token)
+app.get(
+  '/api/pairing/status/:token',
+  wrap(async (req, res) => {
+    const statusObj = await getPairingStatusFromDb(req.params.token);
+    if (!statusObj) {
+      return res
+        .status(404)
+        .json({ error: { code: 'NOT_FOUND', message: 'Codigo no encontrado' } });
+    }
+    res.json(statusObj);
+  }),
+);
 
-app.get('/api/me', (_req, res) => {
-  res.json({
-    id: playerProfile.id,
-    username: playerProfile.username,
-    email: playerProfile.email,
-    credits: playerProfile.credits,
-    energy: playerProfile.energy,
-    intel: playerProfile.intel,
-    player: {
-      id: playerProfile.id,
-      username: playerProfile.username,
-      email: playerProfile.email,
-      credits: playerProfile.credits,
-      energy: playerProfile.energy,
-      intel: playerProfile.intel,
-    },
-    upgrades: playerProfile.upgrades,
-    equippedSkills: playerProfile.equippedSkills,
-    watch: playerProfile.watch,
-  });
-});
+// Endpoint para que el movil consulte si hay un reloj esperando vinculacion en MySQL
+app.get(
+  '/api/pairing/active',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const data = await getActivePairingFromDb(playerId);
+    res.json(data);
+  }),
+);
 
-// 1. El Smartwatch solicita un código de 4 dígitos (POST /api/pairing/code)
-app.post('/api/pairing/code', (_req, res) => {
-  const code = String(Math.floor(1000 + Math.random() * 9000));
-  const pairingToken = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+// 3. El Movil envia los 4 digitos para vincular el reloj (POST /api/pairing/claim) -> Guarda en MySQL
+app.post(
+  '/api/pairing/claim',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const rawCode = String(req.body?.code || '').trim();
+    if (!/^\d{4}$/.test(rawCode)) {
+      return res.status(400).json({
+        error: { code: 'INVALID_CODE', message: 'El codigo debe tener 4 digitos.' },
+      });
+    }
 
-  pairingRequests.set(pairingToken, {
-    code,
-    pairingToken,
-    expiresAt,
-    status: 'PENDING',
-    watchToken: null,
-  });
+    const { watch } = await claimPairingCodeInDb(playerId, rawCode);
+    playerProfile = (await getFullPlayerProfile(playerId)) || playerProfile;
 
-  console.log(`[PAIRING] Smartwatch solicito codigo: ${code} (token: ${pairingToken})`);
-  // Notificar al móvil por si está en la pantalla /pair
-  io.to('player:1').emit('pairing:code_requested', { code, expiresAt });
+    console.log(`[PAIRING][MySQL] Reloj vinculado con exito para jugador #${playerId} (codigo: ${rawCode})`);
+    io.to('player:1').emit('pairing:linked', { watch });
 
-  res.json({ code, pairingToken, expiresAt });
-});
-
-// 2. El Smartwatch pregunta cada 2 s si el móvil ya confirmó el código (GET /api/pairing/status/:token)
-app.get('/api/pairing/status/:token', (req, res) => {
-  const entry = pairingRequests.get(req.params.token);
-  if (!entry) {
-    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Código no encontrado' } });
-  }
-
-  if (entry.status === 'LINKED') {
     return res.json({
-      status: 'LINKED',
-      watchToken: entry.watchToken,
-      player: {
-        id: playerProfile.id,
-        username: playerProfile.username,
-        credits: playerProfile.credits,
-        energy: playerProfile.energy,
-        intel: playerProfile.intel,
-      },
+      ok: true,
+      watch,
+      player: playerProfile,
     });
-  }
+  }),
+);
 
-  return res.json({ status: 'PENDING' });
-});
+app.delete(
+  '/api/pairing/watch',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    await unlinkWatchInDb(playerId);
+    playerProfile = (await getFullPlayerProfile(playerId)) || playerProfile;
+    res.json({ ok: true, player: playerProfile });
+  }),
+);
 
-// Endpoint de ayuda para que el móvil consulte si hay un reloj esperando vinculación
-app.get('/api/pairing/active', (_req, res) => {
-  let latest = null;
-  for (const entry of pairingRequests.values()) {
-    if (entry.status === 'PENDING' && new Date(entry.expiresAt).getTime() > Date.now()) {
-      latest = { code: entry.code, expiresAt: entry.expiresAt };
+app.put(
+  '/api/skills/equip',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    if (Array.isArray(req.body?.skills)) {
+      playerProfile = await equipSkillsInDb(playerId, req.body.skills);
     }
-  }
-  res.json({ activeCode: latest, watch: playerProfile.watch });
-});
-
-// 3. El Móvil envía los 4 dígitos para vincular el reloj (POST /api/pairing/claim)
-app.post('/api/pairing/claim', (req, res) => {
-  const rawCode = String(req.body?.code || '').trim();
-  if (!/^\d{4}$/.test(rawCode)) {
-    return res.status(400).json({
-      error: { code: 'INVALID_CODE', message: 'El código debe tener 4 dígitos.' },
+    if (activeSession?.status === 'PLAYING') {
+      io.to('player:1').emit('watch:context', buildWatchContext(activeSession));
+    }
+    res.json({
+      ok: true,
+      equippedSkills: playerProfile.equippedSkills,
+      player: playerProfile,
     });
-  }
+  }),
+);
 
-  // Buscar coincidencia exacta con el código del reloj, o vincular la solicitud pendiente más reciente
-  let matchedEntry = null;
-  for (const entry of pairingRequests.values()) {
-    if (entry.status === 'PENDING' && entry.code === rawCode) {
-      matchedEntry = entry;
-      break;
-    }
-  }
-  if (!matchedEntry) {
-    for (const entry of pairingRequests.values()) {
-      if (entry.status === 'PENDING') {
-        matchedEntry = entry;
-      }
-    }
-  }
+app.get(
+  '/api/upgrades',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const profile = await getFullPlayerProfile(playerId);
+    res.json({
+      upgrades: profile.upgrades,
+      unlockedSkills: profile.unlockedSkills,
+      equippedSkills: profile.equippedSkills,
+    });
+  }),
+);
 
-  const watchToken = `nexo_watch_jwt_${Date.now()}`;
-  if (matchedEntry) {
-    matchedEntry.status = 'LINKED';
-    matchedEntry.watchToken = watchToken;
-  }
+app.post(
+  '/api/upgrades/:type/buy',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const type = req.params.type;
+    playerProfile = await buyUpgradeInDb(playerId, type);
+    res.json({
+      ok: true,
+      upgrades: playerProfile.upgrades,
+      player: playerProfile,
+    });
+  }),
+);
 
-  const watchDevice = {
-    id: Date.now(),
-    deviceName: `Wear OS Hacker Deck #${matchedEntry ? matchedEntry.code : rawCode}`,
-    linkedAt: 'Vinculado en tiempo real',
-    lastSeenAt: 'En línea · Socket activo',
-  };
-  playerProfile.watch = watchDevice;
+app.get(
+  '/api/base',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const profile = await getFullPlayerProfile(playerId);
+    res.json({ ok: true, base: profile.base });
+  }),
+);
 
-  console.log(`[PAIRING] Reloj vinculado con exito (codigo: ${rawCode})`);
-  io.to('player:1').emit('pairing:linked', { watch: watchDevice });
+app.put(
+  '/api/base',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const body = req.body || {};
+    const mapPayload = body.mapJson || body;
+    playerProfile = await savePlayerBaseInDb(playerId, {
+      name: body.name || mapPayload.name,
+      tiles: mapPayload.tiles,
+      entities: mapPayload.entities,
+      isPublished: body.isPublished ?? mapPayload.isPublished ?? true,
+    });
+    res.json({
+      ok: true,
+      base: playerProfile.base,
+      player: playerProfile,
+    });
+  }),
+);
 
-  return res.json({
-    ok: true,
-    watch: watchDevice,
-    player: playerProfile,
-  });
-});
+app.post(
+  '/api/base/publish',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const profile = await getFullPlayerProfile(playerId);
+    playerProfile = await savePlayerBaseInDb(playerId, {
+      name: profile.base.name,
+      tiles: profile.base.tiles,
+      entities: profile.base.entities,
+      isPublished: true,
+    });
+    res.json({
+      ok: true,
+      base: playerProfile.base,
+      player: playerProfile,
+    });
+  }),
+);
 
-app.put('/api/skills/equip', (req, res) => {
-  if (Array.isArray(req.body?.skills)) {
-    playerProfile.equippedSkills = req.body.skills.slice(0, 4);
-  }
-  if (activeSession?.status === 'PLAYING') {
-    io.to('player:1').emit('watch:context', buildWatchContext(activeSession));
-  }
-  res.json({ ok: true, equippedSkills: playerProfile.equippedSkills });
-});
+app.post(
+  '/api/sessions/solo',
+  wrap(async (req, res) => {
+    const missionId = Number(req.body?.missionId || 1);
+    res.json({ sessionId: `level-${missionId}` });
+  }),
+);
 
-app.post('/api/upgrades/:type/buy', (req, res) => {
-  const type = req.params.type;
-  if (type === 'battery' || type === 'cipher' || type === 'efficiency') {
-    const curr = playerProfile.upgrades[type] || 1;
-    playerProfile.upgrades[type] = Math.min(3, curr + 1);
-  }
-  res.json({ ok: true, upgrades: playerProfile.upgrades });
-});
+app.post(
+  '/api/raids/start',
+  wrap(async (req, res) => {
+    const baseId = Number(req.body?.baseId || 201);
+    res.json({ sessionId: `raid-${baseId}` });
+  }),
+);
+
+app.get(
+  '/api/raids/reports',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const profile = await getFullPlayerProfile(playerId);
+    res.json(profile.raidReports || []);
+  }),
+);
+
+app.get(
+  '/api/history',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const profile = await getFullPlayerProfile(playerId);
+    res.json(profile.history || []);
+  }),
+);
+
+app.get(
+  '/api/missions',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const rows = await query('SELECT * FROM missions ORDER BY level_number ASC');
+    const profile = await getFullPlayerProfile(playerId);
+    res.json({
+      missions: rows,
+      completedLevels: profile.completedLevels,
+    });
+  }),
+);
+
+app.post(
+  '/api/missions/:level/complete',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const level = Number(req.params.level || 1);
+    playerProfile = await recordMissionResultInDb(playerId, {
+      ...req.body,
+      level,
+    });
+    res.json({
+      ok: true,
+      player: playerProfile,
+    });
+  }),
+);
+
+app.get(
+  '/api/raids/targets',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const targets = await getRaidTargetsFromDb(playerId);
+    res.json({ targets });
+  }),
+);
+
+app.post(
+  '/api/coop/rooms',
+  wrap(async (req, res) => {
+    const playerId = resolvePlayerIdFromReq(req);
+    const levelNumber = Number(req.body?.levelNumber || 1);
+    const roomCode = String(Math.floor(100000 + Math.random() * 900000));
+    const sessionId = `coop-${roomCode}`;
+    const room = {
+      roomCode,
+      sessionId,
+      hostId: playerId,
+      levelNumber,
+      createdAt: new Date().toISOString(),
+    };
+    coopRooms.set(roomCode, room);
+    res.json(room);
+  }),
+);
+
+app.post(
+  '/api/coop/rooms/:roomCode/join',
+  wrap(async (req, res) => {
+    const code = String(req.params.roomCode || '').trim();
+    const existing = coopRooms.get(code) || {
+      roomCode: code,
+      sessionId: `coop-${code}`,
+      levelNumber: 1,
+    };
+    res.json(existing);
+  }),
+);
+
+app.use(errorHandler);
 
 // ============================================================================
-// Eventos en Tiempo Real (Socket.io) entre Móvil y Smartwatch
+// Eventos en Tiempo Real (Socket.io) entre Movil y Smartwatch
 // ============================================================================
 
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => {
   const token = socket.handshake.auth?.token || 'guest';
-  const isWatch = String(token).startsWith('nexo_watch_jwt');
+  const auth = verifyToken(token);
+  const isWatch = auth?.role === 'watch' || String(token).startsWith('nexo_watch_jwt');
+  const playerId = auth?.playerId || 1;
+
   socket.join('player:1');
+  socket.join(`player:${playerId}`);
 
-  console.log(`[SOCKET] Conectado (${isWatch ? 'SMARTWATCH' : 'MOVIL'}) id=${socket.id}`);
+  console.log(
+    `[SOCKET] Conectado (${isWatch ? 'SMARTWATCH' : 'MOVIL'}) id=${socket.id} player=#${playerId}`,
+  );
 
-  if (isWatch && playerProfile.watch) {
-    playerProfile.watch.lastSeenAt = 'Conectado en vivo';
-    io.to('player:1').emit('pairing:linked', { watch: playerProfile.watch });
+  if (isWatch) {
+    try {
+      await touchWatchLastSeen(playerId);
+      playerProfile = (await getFullPlayerProfile(playerId)) || playerProfile;
+      if (playerProfile.watch) {
+        io.to('player:1').emit('pairing:linked', { watch: playerProfile.watch });
+      }
+    } catch (err) {
+      console.error('[SOCKET] Error actualizando estado del reloj en MySQL:', err.message);
+    }
   }
 
-  // Si ya hay una misión activa, enviar de inmediato el estado al dispositivo que acaba de conectar
   if (activeSession && activeSession.status === 'PLAYING') {
     socket.emit('session:state', activeSession);
     socket.emit('watch:context', buildWatchContext(activeSession));
   }
 
-  // Unirse a la sala de una sesión
   socket.on('session:join', (payload) => {
     const sid = payload?.sessionId || activeSession?.sessionId || 'demo';
     socket.join(`session:${sid}`);
@@ -538,8 +720,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Sincronización de estado enviada por el Móvil en cada movimiento o inicio de misión
-  socket.on('session:sync', (payload) => {
+  // Sincronizacion de estado enviada por el Movil en cada movimiento o inicio de mision
+  socket.on('session:sync', async (payload) => {
     if (!payload || !payload.state) return;
     const prevAlert = activeSession?.alert || 0;
     const prevSessionId = activeSession?.sessionId;
@@ -560,13 +742,27 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Si cruzó el umbral de sospecha (50%), hacer vibrar el reloj con ALERT_UP
     if (prevAlert < 50 && (activeSession.alert || 0) >= 50) {
       io.to('player:1').emit('watch:feedback', { type: 'ALERT_UP', data: {} });
     }
 
-    // Si la partida terminó en el móvil, avisar también al reloj con `game:ended`
     if (activeSession.status === 'WON' || activeSession.status === 'LOST') {
+      if (lastRecordedWinSessionId !== `${activeSession.sessionId}:${activeSession.status}`) {
+        lastRecordedWinSessionId = `${activeSession.sessionId}:${activeSession.status}`;
+        try {
+          playerProfile = await recordMissionResultInDb(playerId, {
+            level: activeSession.level || 1,
+            mode: activeSession.mode || 'SOLO',
+            result: activeSession.status,
+            durationSeconds: activeSession.elapsedSeconds || 60,
+            hacksCompleted: 2,
+            alertPeak: activeSession.alert || 0,
+          });
+        } catch (err) {
+          console.error('[SOCKET][MySQL] Error guardando resultado de mision:', err.message);
+        }
+      }
+
       io.to('player:1').emit('game:ended', {
         result: activeSession.status,
         rewards:
@@ -581,7 +777,6 @@ io.on('connection', (socket) => {
     broadcastSessionAndContext();
   });
 
-  // El Móvil también puede pedir lanzar un desafío en el reloj cuando el jugador toca una puerta/terminal cerrada
   socket.on('mobile:request_watch_hack', (payload) => {
     if (!activeSession || activeSession.status !== 'PLAYING') return;
     const targetId = payload?.targetId || findNearHackTarget(activeSession);
@@ -595,7 +790,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // El Smartwatch pide iniciar el minijuego de hackeo (`watch:hack_request { targetId }`)
   socket.on('watch:hack_request', (payload) => {
     if (!activeSession || activeSession.status !== 'PLAYING') return;
     const targetId = payload?.targetId || findNearHackTarget(activeSession) || 'DOOR_1';
@@ -615,7 +809,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // El Smartwatch envía la respuesta del minijuego (`watch:hack_result { challengeId, input }`)
   socket.on('watch:hack_result', (payload) => {
     const challengeId = payload?.challengeId;
     const input = payload?.input;
@@ -630,13 +823,11 @@ io.on('connection', (socket) => {
       }`,
     );
 
-    // Enviar feedback háptico al reloj
     io.to('player:1').emit('watch:feedback', {
       type: isSuccess ? 'SUCCESS' : 'FAIL',
       data: { targetId: record.targetId },
     });
 
-    // Ordenar al móvil que aplique el resultado en el tablero en tiempo real
     io.to('player:1').emit('watch:command', {
       type: 'HACK_RESOLVED',
       success: isSuccess,
@@ -645,7 +836,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // El Smartwatch usa una habilidad (`watch:skill { skill }`)
   socket.on('watch:skill', (payload) => {
     const skillCode = String(payload?.skill || '');
     if (!skillCode || !activeSession) return;
@@ -668,7 +858,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Eventos cooperativos desde el reloj (`coop:ping`, `coop:transfer_battery`)
   socket.on('coop:ping', (payload) => {
     const pingType = payload?.type || 'DANGER';
     io.to('player:1').emit('watch:feedback', {
@@ -700,11 +889,31 @@ io.on('connection', (socket) => {
   });
 });
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`========================================================`);
-  console.log(`NEXO Backend (REST + Socket.io) escuchando en 0.0.0.0:${PORT}`);
-  console.log(`- En PC / Web:            http://localhost:${PORT}`);
-  console.log(`- En Emulador Android:    http://10.0.2.2:${PORT}`);
-  console.log(`- En Red Local Wi-Fi:     http://192.168.33.4:${PORT}`);
-  console.log(`========================================================`);
-});
+// ============================================================================
+// Inicializacion de Base de Datos MySQL 8 y Arranque del Servidor
+// ============================================================================
+
+async function startServer() {
+  try {
+    await initDatabase();
+    await seed();
+    const initialProfile = await getFullPlayerProfile(1);
+    if (initialProfile) {
+      playerProfile = initialProfile;
+    }
+    console.log(`[MySQL 8] Base de datos "${env.DB_NAME}" conectada y sincronizada.`);
+  } catch (err) {
+    console.error('[MySQL 8] Error al inicializar la base de datos:', err.message);
+  }
+
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`========================================================`);
+    console.log(`NEXO Backend (REST + Socket.io + MySQL 8) en 0.0.0.0:${PORT}`);
+    console.log(`- En PC / Web:            http://localhost:${PORT}`);
+    console.log(`- En Emulador Android:    http://10.0.2.2:${PORT}`);
+    console.log(`- En Red Local Wi-Fi:     http://192.168.33.4:${PORT}`);
+    console.log(`========================================================`);
+  });
+}
+
+startServer();

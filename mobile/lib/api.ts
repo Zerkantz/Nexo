@@ -125,10 +125,25 @@ export const authApi = {
 
 export const pairingApi = {
   claim: (code: string) => api.post('/pairing/claim', { code }).then((r) => r.data),
+  unlink: () => api.delete('/pairing/watch').then((r) => r.data),
 };
 
 export const missionsApi = {
   list: () => api.get<MissionInfo[]>('/missions').then((r) => r.data),
+  complete: (
+    level: number,
+    payload: {
+      mode?: 'SOLO' | 'COOP' | 'PVP';
+      result: 'WON' | 'LOST';
+      durationSeconds?: number;
+      hacksCompleted?: number;
+      alertPeak?: number;
+      creditsEarned?: number;
+      energyEarned?: number;
+      intelEarned?: number;
+      unlockedSkill?: string;
+    },
+  ) => api.post(`/missions/${level}/complete`, payload).then((r) => r.data),
 };
 
 export const sessionApi = {

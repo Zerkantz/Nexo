@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   authApi,
   baseApi,
+  missionsApi,
   pairingApi,
   upgradesApi,
   type MissionHistoryEntry,
@@ -401,25 +402,53 @@ export const DEFAULT_PROFILE_STATE: PlayerProfileState = {
 let memoryCache: PlayerProfileState | null = null;
 
 export async function loadPlayerProfile(): Promise<PlayerProfileState> {
-  if (memoryCache) return memoryCache;
+  if (!memoryCache) {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<PlayerProfileState>;
+        memoryCache = {
+          ...DEFAULT_PROFILE_STATE,
+          ...parsed,
+          player: { ...DEFAULT_PROFILE_STATE.player, ...(parsed.player ?? {}) },
+          upgrades: { ...DEFAULT_PROFILE_STATE.upgrades, ...(parsed.upgrades ?? {}) },
+          missions: parsed.missions?.length ? parsed.missions : DEFAULT_MISSIONS,
+          base: parsed.base ?? createDefaultBase(),
+        };
+      }
+    } catch {
+      // Fallback al perfil por defecto
+    }
+    if (!memoryCache) {
+      memoryCache = DEFAULT_PROFILE_STATE;
+    }
+  }
+
+  // Sincronizar con el servidor MySQL 8 si esta en linea
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<PlayerProfileState>;
+    const remote = await authApi.me();
+    if (remote && remote.player) {
       memoryCache = {
-        ...DEFAULT_PROFILE_STATE,
-        ...parsed,
-        player: { ...DEFAULT_PROFILE_STATE.player, ...(parsed.player ?? {}) },
-        upgrades: { ...DEFAULT_PROFILE_STATE.upgrades, ...(parsed.upgrades ?? {}) },
-        missions: parsed.missions?.length ? parsed.missions : DEFAULT_MISSIONS,
-        base: parsed.base ?? createDefaultBase(),
+        ...memoryCache,
+        player: {
+          ...memoryCache.player,
+          ...remote.player,
+        },
+        upgrades: remote.upgrades ?? memoryCache.upgrades,
+        unlockedSkills: Array.isArray(remote.unlockedSkills) && remote.unlockedSkills.length
+          ? remote.unlockedSkills
+          : memoryCache.unlockedSkills,
+        equippedSkills: Array.isArray(remote.equippedSkills) && remote.equippedSkills.length
+          ? remote.equippedSkills
+          : memoryCache.equippedSkills,
+        watch: remote.watch !== undefined ? remote.watch : memoryCache.watch,
       };
-      return memoryCache;
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(memoryCache));
     }
   } catch {
-    // Fallback al perfil por defecto
+    // Continuar con cache local si el backend esta apagado
   }
-  memoryCache = DEFAULT_PROFILE_STATE;
+
   return memoryCache;
 }
 
@@ -541,6 +570,11 @@ export async function linkWatchWithCode(code: string): Promise<{
 
 export async function unlinkWatch(): Promise<PlayerProfileState> {
   const current = await loadPlayerProfile();
+  try {
+    await pairingApi.unlink();
+  } catch {
+    // Respaldo local
+  }
   return savePlayerProfile({
     ...current,
     watch: null,
@@ -814,6 +848,22 @@ export async function recordMissionCompletion(params: {
 
   const isRaid = params.sessionId.startsWith('raid-');
   const isCoop = params.sessionId.startsWith('coop-');
+
+  try {
+    await missionsApi.complete(levelNum, {
+      mode: isRaid ? 'PVP' : isCoop ? 'COOP' : 'SOLO',
+      result: params.result,
+      durationSeconds: Math.max(15, params.turns * 2),
+      hacksCompleted: 2,
+      alertPeak: params.maxAlert,
+      creditsEarned: isWin ? params.rewards.credits : 0,
+      energyEarned: isWin ? params.rewards.energy : 0,
+      intelEarned: isWin ? params.rewards.intel : 0,
+      unlockedSkill: params.unlockedSkill,
+    });
+  } catch {
+    // Respaldo local si no hay conexion
+  }
 
   const newEntry: MissionHistoryEntry = {
     id: `hist-${Date.now()}`,
